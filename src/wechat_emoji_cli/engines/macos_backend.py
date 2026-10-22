@@ -67,10 +67,14 @@ def run_cli(arguments: list[str], report=None, pause_event=None) -> None:
                 directory.mkdir(parents=True, exist_ok=True)
                 diagnostic = directory / "mac-extraction.log"
                 fd = os.open(diagnostic, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                output = log.read()
                 with os.fdopen(fd, "w") as handle:
-                    handle.write(log.read())
+                    handle.write(output)
+                from ..diagnostics import redact
+
+                reason = redact("\n".join(output.splitlines()[-10:]))[-3000:]
                 raise RuntimeError(
-                    "Mac 提取失败；首次使用请退出微信后运行 wxemoticon key，详细原因已记录到本地诊断日志。"
+                    f"Mac 提取工具退出（退出码 {child.returncode}）：{reason or '未提供错误输出'}"
                 )
         finally:
             if child.poll() is None:

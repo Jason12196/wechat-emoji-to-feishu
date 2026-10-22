@@ -556,30 +556,40 @@ fn open_dir(_path: &Path) -> anyhow::Result<()> {
 
 #[cfg(target_os = "macos")]
 fn wechat_is_running(wechat_app: &Path) -> bool {
-    // Don't use `ps | grep` / `pgrep -f` because they may match themselves and cause false positives.
-    // Instead, scan full process argument lists and look for "<bundle>.app/Contents/" substrings.
-    let mut bundle_names = HashSet::<String>::new();
-    // Our cached runnable copy is always named "WeChat.app".
-    bundle_names.insert("WeChat.app".to_string());
-    if let Some(name) = wechat_app.file_name().and_then(|s| s.to_str()) {
-        if name.ends_with(".app") {
-            bundle_names.insert(name.to_string());
-        }
-    }
-    let needles: Vec<String> = bundle_names
-        .into_iter()
-        .map(|n| format!("{n}/Contents/"))
-        .collect();
-
-    let out = Command::new("/bin/ps").args(["-A", "-o", "args="]).output();
+    // Inspect executable paths, never arbitrary arguments or nested helper bundles.
+    let out = Command::new("/bin/ps").args(["-A", "-o", "comm="]).output();
     let Ok(out) = out else { return false };
-    let text = String::from_utf8_lossy(&out.stdout);
-    for line in text.lines() {
-        if needles.iter().any(|n| line.contains(n)) {
-            return true;
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .any(|line| is_wechat_main_executable(line.trim(), wechat_app))
+}
+
+#[cfg(target_os = "macos")]
+fn is_wechat_main_executable(executable: &str, wechat_app: &Path) -> bool {
+    let path = Path::new(executable);
+    let Some(macos) = path.parent() else { return false };
+    let Some(contents) = macos.parent() else { return false };
+    let Some(bundle) = contents.parent() else { return false };
+    macos.file_name().and_then(|s| s.to_str()) == Some("MacOS")
+        && contents.file_name().and_then(|s| s.to_str()) == Some("Contents")
+        && matches!(path.file_name().and_then(|s| s.to_str()), Some("WeChat" | "Weixin"))
+        && (bundle.file_name() == wechat_app.file_name()
+            || bundle.file_name().and_then(|s| s.to_str()) == Some("WeChat.app"))
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod wechat_process_tests {
+    use super::*;
+    #[test]
+    fn detects_original_and_cached_main_but_not_helpers() {
+        let app = Path::new("/Applications/WeChat.app");
+        for path in ["/Applications/WeChat.app/Contents/MacOS/WeChat", "/Users/test/Library/Caches/export-wechat-emoji/WeChat.app/Contents/MacOS/WeChat"] {
+            assert!(is_wechat_main_executable(path, app));
+        }
+        for path in ["/Applications/WeChat.app/Contents/Frameworks/crashpad_handler", "/Applications/WeChat.app/Contents/MacOS/XPlayer.app/Contents/MacOS/XPlayer", "/bin/echo WeChat.app/Contents/MacOS/WeChat", "/Applications/Unrelated.app/Contents/MacOS/WeChat"] {
+            assert!(!is_wechat_main_executable(path, app));
         }
     }
-    false
 }
 
 #[cfg_attr(not(any(target_os = "macos", target_os = "linux")), allow(dead_code))]
