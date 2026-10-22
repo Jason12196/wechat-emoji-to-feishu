@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from PIL import Image
+
 from wechat_emoji_cli.cli import main
 from wechat_emoji_cli.engines.macos_resources import decode, prepare, resource_id
 from wechat_emoji_cli.engines.personal_import import upload
@@ -139,14 +140,18 @@ class CliTests(unittest.TestCase):
         self.assertTrue(events[-1]["result"]["fits"])
         self.assertEqual(events[-1]["result"]["selected"], 0)
 
-    def test_enterprise_tail_is_rejected_without_upload(self):
-        for i in range(50):
-            Image.new("RGB", (4, 4)).save(self.images / f"extra-{i}.png")
+    def test_single_personal_sticker_is_valid(self):
         code, events, _ = self.call(
-            "feishu", "plan", self.images, "--account", "test", "--mode", "enterprise"
+            "feishu", "plan", self.images, "--account", "test", "--existing-count", "0"
         )
         self.assertEqual(code, 0)
-        self.assertFalse(events[-1]["result"]["fits"])
+        self.assertTrue(events[-1]["result"]["fits"])
+        self.assertEqual(events[-1]["result"]["mode"], "personal")
+
+    def test_enterprise_option_is_rejected(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+            self.call("feishu", "plan", self.images, "--account", "test", "--mode", "enterprise")
+        self.assertEqual(error.exception.code, 2)
 
     def test_task_id_cannot_escape_state_directory(self):
         code, events, _ = self.call("tasks", "show", "../../outside")

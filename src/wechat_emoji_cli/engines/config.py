@@ -15,12 +15,9 @@ WECHAT_FILES_ROOT = os.environ.get(
 )
 FEISHU_HOME_URL = "https://www.feishu.cn/"
 FEISHU_MESSENGER_URL = "https://www.feishu.cn/messenger/"
-FEISHU_ADMIN_URL = "https://www.feishu.cn/admin"
 FEISHU_EMOJI_MAX_SIZE_KB = 800
 FEISHU_EMOJI_DIMENSION = 400
 FEISHU_EMOJI_FORMATS = (".png", ".gif", ".jpg", ".jpeg", ".webp")
-FEISHU_EMOJI_PACK_MIN = 6
-FEISHU_EMOJI_PACK_MAX = 50
 PAGE_TIMEOUT = 30000
 UPLOAD_TIMEOUT = 10000
 LOGIN_TIMEOUT = 600000

@@ -1,6 +1,6 @@
 # 微信表情导入飞书
 
-面向 Mac 的统一 CLI：整合微信表情提取、资源还原、动画处理与飞书导入。后续 Electron 前端只需调用本 CLI。
+面向 Mac 的统一 CLI：整合微信表情提取、资源还原、动画处理与飞书个人自定义表情导入。后续 Electron 前端只需调用本 CLI。
 
 ## 安装（源码开发版）
 
@@ -44,16 +44,12 @@ wechat-emoji --json feishu plan ./exported --account my-account --existing-count
 wechat-emoji --json feishu login --account my-account
 wechat-emoji --json feishu import ./exported --account my-account --existing-count 900 --limit 50
 
-# 保留企业表情包导入入口（需管理员，尚未做本机端到端验收）
-wechat-emoji --json feishu plan ./exported --account company-admin --mode enterprise
-wechat-emoji --json feishu import ./exported --account company-admin --mode enterprise --pack-name "我的表情包"
-
 # 任务记录
 wechat-emoji --json tasks list
 wechat-emoji --json tasks show TASK_UUID
 ```
 
-个人模式必须明确提供当前已有数量。超出可用容量时直接返回 CAPACITY_EXCEEDED，不启动浏览器，不删除任何既有表情。--limit 明确选择排序后的前 N 张，不会自动截断整个任务。企业模式会拒绝尾组不足 6 张的计划，避免继承上传器静默丢弃尾组。
+个人模式必须明确提供当前已有数量。超出可用容量时直接返回 CAPACITY_EXCEEDED，不启动浏览器，不删除任何既有表情。--limit 明确选择排序后的前 N 张，不会自动截断整个任务。仅支持个人自定义表情，无需企业管理员权限。
 
 ## 前端调用协议
 
@@ -75,7 +71,7 @@ wechat-emoji --json tasks show TASK_UUID
 
 历史本机验证：微信 4.1.15 (270135)、Apple Silicon；996 条记录成功导出、全部逐帧解码；个人导入链路已部分验证。受飞书个人表情容量约束，未声称 996 张全部导入成功。
 
-新仓库验证使用隔离状态与合成图片，不继续上传用户的飞书。Intel、Windows、其他微信版本、企业导入以及独立安装包未做端到端验证。
+新仓库验证使用隔离状态与合成图片，不继续上传用户的飞书。Intel、Windows、其他微信版本以及独立安装包未做端到端验证。
 
 ```sh
 python -m unittest discover -s tests -v

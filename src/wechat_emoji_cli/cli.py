@@ -57,16 +57,14 @@ def parser():
         fp.add_argument(
             "--account", required=True, help="Named local profile; verify the actual login matches"
         )
-        fp.add_argument("--mode", choices=["personal", "enterprise"], default="personal")
         fp.add_argument(
             "--existing-count",
             type=int,
-            help="Current personal sticker count, required for personal mode",
+            help="Current personal sticker count (required)",
         )
         fp.add_argument(
             "--limit", type=int, help="Explicitly select the first N sorted valid files"
         )
-        fp.add_argument("--pack-name", default="微信表情包")
         fp.add_argument("--ledger", help="Resume an existing ledger for the SAME account")
         if name == "import":
             fp.add_argument("--batch-size", type=int, default=10)
@@ -137,29 +135,15 @@ def plan(args):
         else:
             retained.append(item)
     oversize = [x["file"] for x in retained if x["bytes"] > config.FEISHU_EMOJI_MAX_SIZE_KB * 1024]
-    if args.mode == "personal":
-        if args.existing_count is None or not 0 <= args.existing_count <= 1000:
-            raise CommandError(
-                "CAPACITY_REQUIRED", "Personal mode requires --existing-count between 0 and 1000"
-            )
-        available = 1000 - args.existing_count
-    else:
-        available = None
-        if args.ledger:
-            raise CommandError(
-                "ENTERPRISE_RESUME_UNSUPPORTED", "Enterprise automatic resume is not supported"
-            )
-    remainder = len(retained) % config.FEISHU_EMOJI_PACK_MAX
-    enterprise_fits = len(retained) >= 6 and (remainder == 0 or remainder >= 6)
-    fits = (
-        (len(retained) <= available if available is not None else enterprise_fits)
-        and not oversize
-        and not invalid
-        and not unresolved
-    )
+    if args.existing_count is None or not 0 <= args.existing_count <= 1000:
+        raise CommandError(
+            "CAPACITY_REQUIRED", "Personal import requires --existing-count between 0 and 1000"
+        )
+    available = 1000 - args.existing_count
+    fits = len(retained) <= available and not oversize and not invalid and not unresolved
     return {
         "account": args.account,
-        "mode": args.mode,
+        "mode": "personal",
         "selected": len(retained),
         "input_count": len(valid),
         "skipped_recorded": skipped,
@@ -321,31 +305,29 @@ def dispatch(args, task):
                 raise CommandError("LOGIN_TIMEOUT", "Feishu login did not complete", 1)
             if args.action == "login":
                 return {"logged_in": True, "account_profile": args.account}
-            if args.mode == "personal":
-                from .engines.personal_import import upload
+            from .engines.personal_import import upload
 
-                ledger = (
-                    Path(args.ledger).expanduser().resolve()
-                    if args.ledger
-                    else home / "imports" / f"{task.id}.json"
+            ledger = (
+                Path(args.ledger).expanduser().resolve()
+                if args.ledger
+                else home / "imports" / f"{task.id}.json"
+            )
+            binding = ledger.with_suffix(".account.json")
+            if ledger.exists() and not binding.exists():
+                raise CommandError(
+                    "LEDGER_ACCOUNT_UNKNOWN", "Resume ledger has no account binding"
                 )
-                binding = ledger.with_suffix(".account.json")
-                if ledger.exists() and not binding.exists():
-                    raise CommandError(
-                        "LEDGER_ACCOUNT_UNKNOWN", "Resume ledger has no account binding"
-                    )
-                if (
-                    binding.exists()
-                    and json.loads(binding.read_text()).get("account") != args.account
-                ):
-                    raise CommandError(
-                        "LEDGER_ACCOUNT_MISMATCH", "Ledger belongs to another named account"
-                    )
-                write_private(binding, {"account": args.account})
-                return upload(
-                    uploader, prepared["files"], batch_size=args.batch_size, ledger_path=ledger
+            if (
+                binding.exists()
+                and json.loads(binding.read_text()).get("account") != args.account
+            ):
+                raise CommandError(
+                    "LEDGER_ACCOUNT_MISMATCH", "Ledger belongs to another named account"
                 )
-            return uploader.upload_enterprise_emojis(prepared["files"], pack_name=args.pack_name)
+            write_private(binding, {"account": args.account})
+            return upload(
+                uploader, prepared["files"], batch_size=args.batch_size, ledger_path=ledger
+            )
     if args.command == "tasks":
         home = Path(config.DATA_DIR) / "tasks"
         if args.action == "list":
