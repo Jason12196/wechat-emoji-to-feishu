@@ -24,3 +24,6 @@ __pycache__/
 /desktop/node_modules/
 /desktop/dist/
 /desktop/test-results/
+
+# Private export URLs and recovery keys
+**/.export-state/

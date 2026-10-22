@@ -6,8 +6,8 @@ const path = require("node:path");
 const { MigrationService } = require("../../electron/services/migration.cjs");
 
 function setup(t, choices = []) {
-  const home = fs.mkdtempSync(
-    path.join(os.tmpdir(), "emoji-export-directory-"),
+  const home = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), "emoji-export-directory-")),
   );
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   const downloads = path.join(home, "Downloads");
@@ -16,12 +16,16 @@ function setup(t, choices = []) {
     downloadsDirectory: downloads,
     runner: {
       home,
-      run: async ([command]) => {
+      run: async ([command, subcommand, directory]) => {
         if (command === "accounts")
           return {
             data: { accounts: [{ wxid: "test-account", key_cached: true }] },
           };
         if (command === "doctor") return { data: { ready: true } };
+        if (command === "exports" && subcommand === "discover")
+          return { data: { exports: [] } };
+        if (command === "exports" && subcommand === "status")
+          return { data: { state: "none", directory } };
         throw new Error(`Unexpected command: ${command}`);
       },
     },
@@ -47,7 +51,8 @@ test("Export defaults to Downloads and preparation never opens a chooser", async
   assert.match(path.basename(firstDirectory), /^微信表情-\d{4}-\d{2}-\d{2}T/);
   assert.ok(fs.statSync(firstDirectory).isDirectory());
   assert.ok(fs.statSync(secondDirectory).isDirectory());
-  assert.notEqual(firstDirectory, secondDirectory);
+  assert.equal(firstDirectory, secondDirectory);
+  assert.equal(first.token, second.token);
 });
 
 test("Choosing a directory only changes future export preparations", async (t) => {
@@ -102,4 +107,26 @@ test("Services without a Downloads injection retain a platform fallback", () => 
     chooseDirectory: async () => null,
   });
   assert.equal(service.exportDirectory, path.join(os.homedir(), "Downloads"));
+});
+
+test("The chosen directory and empty preparations survive app restarts", async (t) => {
+  const { service, home } = setup(t);
+  const selected = path.join(home, "my-exports");
+  service.chooseDirectory = async () => selected;
+  await service.chooseExportDirectory();
+  const first = await service.prepareExport({ wxid: "test-account" });
+  const restarted = new MigrationService({
+    runner: service.runner,
+    downloadsDirectory: path.join(home, "Downloads"),
+    chooseDirectory: async () => null,
+  });
+  const initialized = await restarted.initialize();
+  assert.equal(initialized.exportDirectory, selected);
+  const continued = await restarted.prepareExport({ wxid: "test-account" });
+  assert.equal(continued.directory, first.directory);
+  for (const file of ["preferences.json", "export-jobs.json"])
+    assert.equal(
+      fs.statSync(path.join(home, "desktop", file)).mode & 0o777,
+      0o600,
+    );
 });

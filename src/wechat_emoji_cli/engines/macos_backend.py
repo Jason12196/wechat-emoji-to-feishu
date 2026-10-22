@@ -93,11 +93,21 @@ def run_cli(arguments: list[str], report=None, pause_event=None) -> None:
 def extract(wxid=None, output_dir=None, process=True, progress_callback=None, **kwargs):
     import tempfile
 
+    from . import export_state
     from .macos_resources import export_verified
 
-    destination = Path(output_dir or config.EMOJI_OUTPUT_DIR)
-    raw = destination / "originals"
-    raw.mkdir(parents=True, exist_ok=True)
+    destination = Path(output_dir or config.EMOJI_OUTPUT_DIR).expanduser().absolute()
+    if not wxid:
+        found = accounts()
+        if len(found) != 1:
+            raise ValueError("请明确选择要导出的微信账号。")
+        wxid = found[0]["wxid"]
+    state = export_state.status(destination, wxid)
+    if state["state"] == "complete":
+        entries = export_state.read_json(destination / export_state.REPORT)["files"]
+        expected = export_state.read_json(destination / export_state.MANIFEST)["resources"]
+        by_resource = {entry["resource"]: entry for entry in entries}
+        return [str(destination / by_resource[row["resource"]]["file"]) for row in expected]
 
     def report(message):
         if progress_callback:
@@ -105,34 +115,34 @@ def extract(wxid=None, output_dir=None, process=True, progress_callback=None, **
         else:
             print(message)
 
-    with tempfile.TemporaryDirectory(prefix="wxemoji_metadata_") as private:
-        urls, metadata = Path(private) / "urls.txt", Path(private) / "metadata.json"
-        args = ["urls", "--out", str(urls), "--metadata-out", str(metadata)]
-        if wxid:
-            args += ["--wxid", wxid]
-        run_cli(args, pause_event=kwargs.get("pause_event"))
-        run_cli(
-            [
-                "export",
-                "--urls-file",
-                str(urls),
-                "--flat",
-                "--skip-existing",
-                "--out-dir",
-                str(raw),
-            ],
-            report,
-            kwargs.get("pause_event"),
-        )
-        valid = export_verified(
-            raw,
-            destination,
-            urls.read_text().splitlines(),
-            json.loads(metadata.read_text()),
-            process,
-            report,
-            kwargs.get("pause_event"),
-        )
+    export_state.begin(destination, wxid)
+    snapshot = export_state.load_snapshot(destination, wxid)
+    if snapshot is None:
+        private = destination / export_state.PRIVATE
+        if private.is_symlink():
+            raise ValueError("导出恢复快照目录不能是符号链接。")
+        private.mkdir(mode=0o700, exist_ok=True)
+        private.chmod(0o700)
+        with tempfile.TemporaryDirectory(prefix="metadata-", dir=private) as temporary:
+            urls_file = Path(temporary) / "urls.txt"
+            metadata_file = Path(temporary) / "metadata.json"
+            run_cli([
+                "urls", "--out", str(urls_file), "--metadata-out", str(metadata_file),
+                "--wxid", wxid,
+            ], pause_event=kwargs.get("pause_event"))
+            urls = urls_file.read_text().splitlines()
+            metadata = json.loads(metadata_file.read_text())
+            export_state.save_snapshot(destination, wxid, urls, metadata)
+            snapshot = urls, metadata
+    else:
+        report("[Mac] 已找到此账号的导出清单，继续处理缺失或损坏的图片。")
+    urls, metadata = snapshot
+    # Metadata is now durable. Recovery downloads only missing/invalid images and
+    # does not need to launch WeChat, recapture its key, or query the Rust engine.
+    valid = export_verified(
+        destination / "originals", destination, urls, metadata, process, report,
+        kwargs.get("pause_event"),
+    )
     report(f"[Mac] 可导入图片 {len(valid)} 张；详情见 export-report.json。")
     return valid
 

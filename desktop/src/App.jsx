@@ -95,6 +95,10 @@ export default function App() {
   const heading = useRef(null);
   const keyPreparation = useRef(0);
   const busy = Boolean(m.operation);
+  const existingExport = m.real
+    ? m.exportCandidates?.find((item) => item.state !== "unbound") ||
+      m.exportCandidates?.[0]
+    : null;
   const visible = stickers.filter(
     (item) =>
       (!query || item.label.includes(query)) &&
@@ -109,20 +113,41 @@ export default function App() {
     setConfirmed(false);
     setPreview(null);
   }
-  async function begin(nextSource = source) {
+  async function begin(nextSource = source, directory) {
     setSource(nextSource);
     if (m.real) {
       if (nextSource === "folder") {
         await m.openLocal();
         return;
       }
-      const prepared = await m.prepareExport();
-      if (!prepared) return;
-      if (prepared.keyCached) await m.startExport();
+      if (!directory && existingExport?.state === "unbound") {
+        open("existing-export");
+        return;
+      }
+      const prepared = await m.prepareExport(
+        directory || existingExport?.directory,
+      );
+      if (!prepared || prepared.existing === "complete") return;
+      if (prepared.existing === "partial") {
+        open("resume-export");
+        return;
+      }
+      if (prepared.keyCached || prepared.canResumeWithoutKey)
+        await m.startExport();
       else open("wechat-quit");
     } else if (nextSource === "folder" || scenario === "cached-key")
       m.startExport();
     else open("wechat-quit");
+  }
+  async function continueExport() {
+    if (
+      m.keyReady ||
+      m.exportState?.canResumeWithoutKey ||
+      m.exportState?.snapshot_ready
+    ) {
+      close();
+      await m.startExport();
+    } else open("wechat-quit");
   }
   async function prepareWeChat() {
     if (m.real) {
@@ -279,7 +304,13 @@ export default function App() {
                       className={`source-card wechat-source ${source === "wechat" ? "chosen" : ""}`}
                       onClick={() => begin("wechat")}
                       disabled={busy || (m.real && m.initializing)}
-                      aria-label="从微信收藏导出"
+                      aria-label={
+                        existingExport?.state === "complete"
+                          ? "挑选已导出的表情"
+                          : existingExport?.state === "partial"
+                            ? "继续导出微信表情"
+                            : "从微信收藏导出"
+                      }
                     >
                       <div className="wechat-card-top">
                         <BrandLogo brand="wechat" />
@@ -291,7 +322,13 @@ export default function App() {
                           )}
                         </span>
                       </div>
-                      <div className="wechat-card-title">从微信收藏导出</div>
+                      <div className="wechat-card-title">
+                        {existingExport?.state === "complete"
+                          ? "挑选已导出的表情"
+                          : existingExport?.state === "partial"
+                            ? "继续导出微信表情"
+                            : "从微信收藏导出"}
+                      </div>
                       <div className="wechat-card-account">
                         <span>
                           {m.real
@@ -307,6 +344,20 @@ export default function App() {
                         )}
                       </div>
                     </button>
+                    {existingExport && (
+                      <div className="export-reuse-note" role="status">
+                        <Check size={14} aria-hidden="true" />
+                        <span>
+                          {existingExport.state === "complete"
+                            ? `已导出 ${existingExport.ready} 张，直接挑选`
+                            : existingExport.state === "unbound"
+                              ? `发现 ${existingExport.ready} 张已有图片`
+                              : existingExport.expected
+                                ? `已完成 ${existingExport.ready} / ${existingExport.expected} 张，继续未完成部分`
+                                : "发现未完成的导出，可继续上次任务"}
+                        </span>
+                      </div>
+                    )}
                     <div className="export-directory">
                       <FolderOpen size={15} aria-hidden="true" />
                       <span className="export-directory-label">导出到</span>
@@ -401,6 +452,21 @@ export default function App() {
                     <span>张表情</span>
                   </span>
                 </div>
+                {m.real && m.exportState?.state === "partial" && (
+                  <div className="partial-export-notice">
+                    <span>
+                      已保留 {m.exportState.ready} 张，还有{" "}
+                      {m.exportState.remaining} 张待完成。
+                    </span>
+                    <button
+                      className="text-button"
+                      disabled={busy}
+                      onClick={() => begin("wechat", m.exportState.directory)}
+                    >
+                      继续导出 <ArrowRight size={14} />
+                    </button>
+                  </div>
+                )}
                 <div className="library-toolbar">
                   <div className="segmented" aria-label="表情类型">
                     <button
@@ -865,6 +931,77 @@ export default function App() {
           }
         >
           <Diagnostics error={m.error} />
+        </Modal>
+      )}
+      {dialog === "resume-export" && m.exportState && (
+        <Modal
+          title="继续上次导出"
+          description={
+            m.exportState.expected
+              ? `已完成 ${m.exportState.ready} / ${m.exportState.expected} 张，只处理未完成项目。`
+              : "将继续上次任务，已保存的图片会保留。"
+          }
+          onClose={close}
+          footer={
+            <Button disabled={busy} onClick={continueExport}>
+              继续导出 <ArrowRight size={16} />
+            </Button>
+          }
+        >
+          <p className="modal-note">
+            {m.exportState.canResumeWithoutKey || m.exportState.snapshot_ready
+              ? "已保存导出清单，无需重新打开微信。"
+              : m.keyReady
+                ? "将复用已有密钥，不再重新获取。"
+                : "如果需要准备微信，会在下一步提示。"}
+          </p>
+        </Modal>
+      )}
+      {dialog === "existing-export" && existingExport && (
+        <Modal
+          title={existingExport.legacy_raw ? "继续旧版导出" : "发现已有导出"}
+          description={
+            existingExport.legacy_raw
+              ? `已保存 ${existingExport.raw_count} 个原始文件，将在原目录继续并复用已有文件。`
+              : `这里已有 ${existingExport.ready} 张图片，可以直接挑选。`
+          }
+          onClose={busy ? undefined : close}
+          footer={
+            <Button
+              disabled={busy}
+              onClick={async () => {
+                if (existingExport.legacy_raw) {
+                  const value = await m.adoptExistingExport(
+                    existingExport.directory,
+                  );
+                  if (!value) return;
+                  close();
+                  if (value.existing === "complete") return;
+                  if (value.keyCached || value.canResumeWithoutKey)
+                    await m.startExport();
+                  else open("wechat-quit");
+                } else {
+                  const value = await m.useExistingExport(
+                    existingExport.directory,
+                  );
+                  if (value) close();
+                }
+              }}
+            >
+              {existingExport.legacy_raw ? "确认账号并继续" : "使用已有图片"}
+              <ArrowRight size={16} />
+            </Button>
+          }
+        >
+          <p className="modal-note">
+            这份旧记录未保存微信账号，请确认它属于当前选择的微信账号：
+            {account?.nickname || m.wxid}。
+          </p>
+          {existingExport.legacy_raw && (
+            <p className="modal-note">
+              旧版没有保留完整清单，继续时会先读取清单，再检查并补齐缺失图片。
+            </p>
+          )}
         </Modal>
       )}
       {dialog === "export-directory" && (

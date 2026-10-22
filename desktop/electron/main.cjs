@@ -125,7 +125,10 @@ app.whenReady().then(() => {
         [
           "initialize",
           "chooseExportDirectory",
+          "findExports",
           "prepareExport",
+          "useExistingExport",
+          "adoptExistingExport",
           "key",
           "extract",
           "openLocal",

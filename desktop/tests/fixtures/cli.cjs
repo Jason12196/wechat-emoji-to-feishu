@@ -65,7 +65,19 @@ if (args[0] === "accounts")
 else if (args[0] === "doctor")
   data = { ready: true, rust_cli_ready: true, chromium_ready: true };
 else if (args[0] === "key") data = { key_cached: true };
-else if (
+else if (args[0] === "exports") {
+  data =
+    args[1] === "discover"
+      ? { exports: [] }
+      : {
+          state: "none",
+          directory: args[2],
+          expected: 0,
+          ready: 0,
+          remaining: 0,
+          snapshot_ready: false,
+        };
+} else if (
   args[0] === "extract" ||
   (args[0] === "images" && args[1] === "prepare")
 ) {

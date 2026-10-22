@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-import json
+import hashlib
+import os
 import re
-from concurrent.futures import ThreadPoolExecutor
+import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -93,18 +95,73 @@ def prepare(data, max_bytes=800 * 1024, max_dimension=400):
 
 
 def export_verified(raw, destination, urls, metadata, process=True, report=None, pause_event=None):
+    from .export_state import atomic_json, read_json, valid_ready
+
     raw, destination = Path(raw), Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
+    if raw.is_symlink():
+        raise ValueError("原始图片目录不能是符号链接。")
+    raw.mkdir(parents=True, exist_ok=True)
+    verified = destination / "verified-originals"
+    if verified.is_symlink():
+        raise ValueError("验证图片目录不能是符号链接。")
+    verified.mkdir(exist_ok=True)
     lookup = {}
     for row in metadata:
         for name, value in row.items():
             if name.endswith("url") and value:
                 lookup.setdefault(resource_id(value), []).append(row)
-    sources = {
-        p.stem: p
-        for p in raw.iterdir()
-        if p.is_file() and p.suffix.lower() in {".gif", ".jpg", ".jpeg", ".png", ".webp"}
+    sources = {}
+    for folder in [raw, verified]:
+        for source in sorted(folder.iterdir()):
+            if (not source.is_symlink() and source.is_file()
+                    and source.suffix.lower() in {".gif", ".jpg", ".jpeg", ".png", ".webp"}):
+                sources.setdefault(source.stem, []).append(source)
+
+    jobs = {}
+    for index, url in enumerate(urls):
+        jobs.setdefault(resource_id(url, index), (index, url))
+    old = read_json(destination / "export-report.json")
+    old_entries = {
+        row["resource"]: row for row in old.get("files", [])
+        if isinstance(row, dict) and isinstance(row.get("resource"), str)
+    } if isinstance(old, dict) and isinstance(old.get("files"), list) else {}
+    results = {
+        identity: old_entries[identity]
+        if valid_ready(destination, old_entries.get(identity))
+        else {**old_entries.get(identity, {}), "resource": identity, "status": "pending"}
+        for identity in jobs
     }
+
+    def checkpoint():
+        rows = list(results.values())
+        atomic_json(destination / "export-report.json", {
+            "total": len(jobs),
+            "ready": sum(row["status"] == "ready" for row in rows),
+            "failed": sum(row["status"] != "ready" for row in rows),
+            "files": rows,
+        })
+
+    def write_bytes(path, value, *, replace=True):
+        # A recovery run preserves good files, including their modification times.
+        if not path.is_symlink() and path.is_file() and path.read_bytes() == value:
+            return
+        fd, temporary = tempfile.mkstemp(prefix=f".{path.name}-", dir=path.parent)
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(value)
+                handle.flush()
+                os.fsync(handle.fileno())
+            if replace:
+                os.replace(temporary, path)
+            else:
+                try:
+                    os.link(temporary, path)
+                except FileExistsError:
+                    pass
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
 
     def one(job):
         if pause_event is not None:
@@ -112,20 +169,26 @@ def export_verified(raw, destination, urls, metadata, process=True, report=None,
         index, url = job
         identity = resource_id(url, index)
         entry = {"resource": identity, "status": "failed"}
-        source = sources.get(identity)
-        data = source.read_bytes() if source else b""
         candidates = lookup.get(identity, [])
+        original_hash = old_entries.get(identity, {}).get("original_sha256")
+        if original_hash:
+            entry["original_sha256"] = original_hash
 
         def usable(value):
             try:
                 decode(value)
+                if original_hash and hashlib.sha256(value).hexdigest() != original_hash:
+                    return None
                 return value
             except Exception:
                 return None
 
-        result = usable(data)
-        recovery = "original"
-        if result is None:
+        result, recovery, downloaded_original = None, "original", None
+        for source in sources.get(identity, []):
+            data = source.read_bytes()
+            result = usable(data)
+            if result is not None:
+                break
             for row in candidates:
                 key = row.get("aes_key") or ""
                 try:
@@ -139,9 +202,11 @@ def export_verified(raw, destination, urls, metadata, process=True, report=None,
                     if result is not None:
                         recovery = "local_aes"
                         break
+            if result is not None:
+                break
         if result is None:
-            seen = {url} if source else set()
-            alternatives = [(url, None)] if not source else []
+            seen = {url}
+            alternatives = [(url, None)]
             for row in candidates:
                 for field in ["encrypt_url", "cdn_url", "tp_url", "extern_url"]:
                     address = row.get(field)
@@ -154,12 +219,22 @@ def export_verified(raw, destination, urls, metadata, process=True, report=None,
                     with urlopen(req, timeout=20) as response:
                         value = response.read()
                     result = usable(value)
-                    if result is None and key_hex and len(value) % 16 == 0:
-                        key = bytes.fromhex(key_hex)
-                        if len(key) == 16:
-                            result = usable(AES.new(key, AES.MODE_CBC, key).decrypt(value))
+                    if result is None and value and len(value) % 16 == 0:
+                        # The primary URL can itself be encrypted; its matching
+                        # metadata must remain available even when URLs deduplicate.
+                        keys = [key_hex, *(row.get("aes_key") for row in candidates)]
+                        for candidate_key in dict.fromkeys(key for key in keys if key):
+                            try:
+                                key = bytes.fromhex(candidate_key)
+                            except (ValueError, TypeError):
+                                continue
+                            if len(key) == 16:
+                                result = usable(AES.new(key, AES.MODE_CBC, key).decrypt(value))
+                                if result is not None:
+                                    break
                     if result is not None:
                         recovery = "alternate_download"
+                        downloaded_original = value
                         break
                 except Exception:
                     continue
@@ -168,12 +243,17 @@ def export_verified(raw, destination, urls, metadata, process=True, report=None,
             return entry
         fmt, size, frames = decode(result)
         ext = {"GIF": "gif", "PNG": "png", "JPEG": "jpg", "WEBP": "webp"}[fmt]
-        verified = destination / "verified-originals"
-        verified.mkdir(exist_ok=True)
-        (verified / f"{identity}.{ext}").write_bytes(result)
+        if downloaded_original is not None and not any(
+            source.parent == raw for source in sources.get(identity, [])
+        ):
+            # Preserve the exact bytes received, including encryption. Never
+            # replace an existing original, even when that original is corrupt.
+            write_bytes(raw / f"{identity}.{ext}", downloaded_original, replace=False)
+        write_bytes(verified / f"{identity}.{ext}", result)
         entry.update(
             recovery=recovery,
             original_bytes=len(result),
+            original_sha256=hashlib.sha256(result).hexdigest(),
             frames=frames,
             width=size[0],
             height=size[1],
@@ -181,11 +261,12 @@ def export_verified(raw, destination, urls, metadata, process=True, report=None,
         try:
             prepared = prepare(result) if process else result
             target = destination / f"{identity}.{ext}"
-            target.write_bytes(prepared)
+            write_bytes(target, prepared)
             out_fmt, out_size, out_frames = decode(prepared)
             entry.update(
                 status="ready",
                 file=target.name,
+                sha256=hashlib.sha256(prepared).hexdigest(),
                 bytes=len(prepared),
                 output_frames=out_frames,
                 output_width=out_size[0],
@@ -195,19 +276,18 @@ def export_verified(raw, destination, urls, metadata, process=True, report=None,
             entry.update(status="preparation_failed", reason=str(exc))
         return entry
 
-    results = []
+    checkpoint()
+    pending = [job for identity, job in jobs.items() if results[identity]["status"] != "ready"]
     with ThreadPoolExecutor(max_workers=4) as pool:
-        for entry in pool.map(one, enumerate(urls)):
-            results.append(entry)
-            if report and len(results) % 50 == 0:
-                report(f"[Mac] 已验证 {len(results)}/{len(urls)}")
-    summary = {
-        "total": len(urls),
-        "ready": sum(r["status"] == "ready" for r in results),
-        "failed": sum(r["status"] != "ready" for r in results),
-        "files": results,
-    }
-    (destination / "export-report.json").write_text(
-        json.dumps(summary, ensure_ascii=False, indent=2)
-    )
-    return [str(destination / r["file"]) for r in results if r["status"] == "ready"]
+        futures = {pool.submit(one, job): resource_id(job[1], job[0]) for job in pending}
+        for completed, future in enumerate(as_completed(futures), 1):
+            identity = futures[future]
+            try:
+                results[identity] = future.result()
+            except Exception as exc:
+                results[identity] = {"resource": identity, "status": "failed", "reason": type(exc).__name__}
+            # Each finished image survives interruption, rather than only the final batch.
+            checkpoint()
+            if report and (completed % 50 == 0 or completed == len(pending)):
+                report(f"[Mac] 已验证 {sum(row['status'] == 'ready' for row in results.values())}/{len(jobs)}")
+    return [str(destination / row["file"]) for row in results.values() if row["status"] == "ready"]

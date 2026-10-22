@@ -15,6 +15,7 @@ async function initialize(page, fail = false) {
             exportDirectory: "/Downloads",
           },
         }),
+        findExports: async () => ({ ok: true, data: { exports: [] } }),
         prepareExport: async () => ({
           ok: true,
           data: { token: "fixture", keyCached: false },

@@ -22,6 +22,8 @@ class CliTests(unittest.TestCase):
         self.images.mkdir()
         self.image = self.images / "a.png"
         Image.new("RGB", (20, 20), "red").save(self.image)
+        self.wechat = self.root / "wechat"
+        self.wechat.mkdir()
 
     def tearDown(self):
         self.temp.cleanup()
@@ -29,8 +31,109 @@ class CliTests(unittest.TestCase):
     def call(self, *arguments):
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = main(["--json", "--home", str(self.root / "state"), *map(str, arguments)])
+            code = main([
+                "--json", "--home", str(self.root / "state"),
+                "--wechat-root", str(self.wechat), *map(str, arguments),
+            ])
         return code, [json.loads(line) for line in out.getvalue().splitlines()], err.getvalue()
+
+    def account(self, wxid="wxid_fixture"):
+        database = self.wechat / wxid / "db_storage/emoticon/emoticon.db"
+        database.parent.mkdir(parents=True)
+        database.write_bytes(b"isolated database fixture")
+        return database
+
+    def test_key_reuses_valid_account_cache_without_helper_or_login_prompt(self):
+        database = self.account()
+        with (
+            patch("wechat_emoji_cli.engines.key_status.cached_key_valid", return_value=True) as cache,
+            patch("wechat_emoji_cli.engines.macos_backend.run_cli") as helper,
+        ):
+            code, events, _ = self.call("key", "--wxid", "wxid_fixture")
+        self.assertEqual(code, 0)
+        cache.assert_called_once_with(database.resolve(), "wxid_fixture")
+        helper.assert_not_called()
+        self.assertEqual([event["type"] for event in events], ["started", "result"])
+        self.assertEqual(events[-1]["result"], {
+            "key_cached": True, "reused": True, "wxid": "wxid_fixture",
+        })
+
+    def test_key_uses_helper_only_for_missing_cache_or_explicit_force(self):
+        self.account()
+        for force in (False, True):
+            with (
+                self.subTest(force=force),
+                patch("wechat_emoji_cli.engines.key_status.cached_key_valid", return_value=force) as cache,
+                patch("wechat_emoji_cli.engines.macos_backend.run_cli") as helper,
+            ):
+                arguments = ["key", "--wxid", "wxid_fixture"]
+                if force:
+                    arguments += ["--force"]
+                code, events, _ = self.call(*arguments)
+                self.assertEqual(code, 0)
+                expected = ["key", "--timeout", "180", "--wxid", "wxid_fixture"]
+                if force:
+                    expected += ["--force"]
+                    cache.assert_not_called()
+                helper.assert_called_once_with(expected)
+                self.assertFalse(events[-1]["result"]["reused"])
+                prompt = next(event for event in events if event["type"] == "action_required")
+                self.assertIn("无需手动打开表情面板", prompt["message"])
+
+    def test_key_rejects_account_paths_and_symlink_escape_before_cache_lookup(self):
+        outside = self.root / "wxid_outside"
+        database = outside / "db_storage/emoticon/emoticon.db"
+        database.parent.mkdir(parents=True)
+        database.write_bytes(b"fixture")
+        (self.wechat / "wxid_symlink").symlink_to(outside, target_is_directory=True)
+        with (
+            patch("wechat_emoji_cli.engines.key_status.cached_key_valid") as cache,
+            patch("wechat_emoji_cli.engines.macos_backend.run_cli") as helper,
+        ):
+            for account in ("../wxid_outside", "wxid_symlink"):
+                with self.subTest(account=account):
+                    code, events, _ = self.call("key", "--wxid", account)
+                    self.assertEqual(code, 2)
+                    self.assertIn(events[-1]["code"], ("INVALID_ACCOUNT", "ACCOUNT_NOT_FOUND"))
+        cache.assert_not_called()
+        helper.assert_not_called()
+
+    def test_key_requires_account_selection_when_multiple_accounts_exist(self):
+        self.account("wxid_first")
+        self.account("wxid_second")
+        with patch("wechat_emoji_cli.engines.macos_backend.run_cli") as helper:
+            code, events, _ = self.call("key")
+        self.assertEqual(code, 2)
+        self.assertEqual(events[-1]["code"], "ACCOUNT_REQUIRED")
+        helper.assert_not_called()
+
+    def test_exports_commands_preserve_read_only_status_and_discovery_results(self):
+        status = {
+            "state": "partial", "directory": str(self.images.resolve()),
+            "expected": 3, "ready": 1, "remaining": 2,
+            "wxid": "wxid_fixture", "snapshot_ready": True,
+        }
+        for action, expected in (("status", status), ("discover", {"exports": [status]})):
+            with (
+                self.subTest(action=action),
+                patch(f"wechat_emoji_cli.engines.export_state.{action}", return_value=expected) as inspect,
+                patch("wechat_emoji_cli.engines.macos_backend.run_cli") as helper,
+            ):
+                code, events, _ = self.call("exports", action, self.images, "--wxid", "wxid_fixture")
+                # A partial local export is a successful read-only inspection, not a failed export.
+                self.assertEqual(code, 0)
+                self.assertEqual(events[-1]["result"], expected)
+                inspect.assert_called_once_with(self.images.resolve(), "wxid_fixture")
+                helper.assert_not_called()
+
+    def test_partial_export_remains_partial_when_some_images_were_written(self):
+        (self.images / "export-report.json").write_text(json.dumps({"ready": 1, "failed": 2}))
+        with patch("wechat_emoji_cli.engines.macos_backend.extract", return_value=[str(self.image)]):
+            code, events, _ = self.call("extract", "--wxid", "wxid_fixture", "--out", self.images)
+        self.assertEqual(code, 3)
+        self.assertEqual(events[-1]["status"], "partial")
+        self.assertEqual(events[-1]["result"]["exported"], 1)
+        self.assertEqual(events[-1]["result"]["failed"], 2)
 
     def test_stdout_is_ndjson_even_when_engine_prints(self):
         def dispatch(*args):

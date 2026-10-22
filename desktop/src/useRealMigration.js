@@ -20,6 +20,10 @@ export default function useRealMigration() {
   const [existing, setExisting] = useState(""),
     [account, setAccount] = useState("我的飞书");
   const [exportDirectory, setExportDirectory] = useState("");
+  const [exportCandidates, setExportCandidates] = useState([]);
+  const [exportState, setExportState] = useState(null);
+  const discovery = useRef(0);
+  const discoveryQueue = useRef(Promise.resolve());
   const [recoveryJob, setRecoveryJob] = useState(null);
   const [recoverySummary, setRecoverySummary] = useState(null);
   const [history, setHistory] = useState([]),
@@ -48,7 +52,13 @@ export default function useRealMigration() {
     setOperation(name);
     setDone(0);
     setTotal(0);
-    setMessage("正在准备…");
+    setMessage(
+      name === "checking"
+        ? "正在检查已有导出…"
+        : name === "preparing"
+          ? "正在核对账号与导出记录…"
+          : "正在准备…",
+    );
     setError(null);
     try {
       return await action();
@@ -119,6 +129,25 @@ export default function useRealMigration() {
       stop();
     };
   }, []);
+  useEffect(() => {
+    if (initializing || !wxid || !exportDirectory || step !== 0) return;
+    const request = ++discovery.current;
+    setExportCandidates([]);
+    discoveryQueue.current = discoveryQueue.current
+      .catch(() => {})
+      .then(() => {
+        if (request !== discovery.current) return;
+        return perform("checking", async () => {
+          const value = await invoke("findExports", { wxid });
+          if (request !== discovery.current) return;
+          setExportCandidates(value.exports);
+          if (value.accounts) setAccounts(value.accounts);
+        });
+      });
+    return () => {
+      discovery.current += 1;
+    };
+  }, [initializing, wxid, exportDirectory, step]);
   function loadCatalog(value) {
     if (!value) return;
     catalog.current = value.token;
@@ -126,7 +155,8 @@ export default function useRealMigration() {
     setSelected(new Set(value.items.map((item) => item.id)));
     setPlan(null);
     setStep(1);
-    if (value.failed)
+    if (value.exportState) setExportState(value.exportState);
+    if (value.failed && value.exportState?.state !== "partial")
       setError({
         code: "PARTIAL_EXPORT",
         stage: "准备表情",
@@ -135,7 +165,7 @@ export default function useRealMigration() {
         detail: value.directory,
       });
   }
-  async function prepareExport() {
+  async function prepareExport(directory) {
     if (!wxid) {
       setError({
         code: "NO_ACCOUNTS",
@@ -146,11 +176,35 @@ export default function useRealMigration() {
       return null;
     }
     return perform("preparing", async () => {
-      const value = await invoke("prepareExport", { wxid });
+      const value = await invoke("prepareExport", { wxid, directory });
       if (value) {
         exportToken.current = value.token;
         setKeyReady(value.keyCached);
+        setExportState(value);
+        if (value.existing === "complete") loadCatalog(value.catalog);
       }
+      return value;
+    });
+  }
+  async function adoptExistingExport(directory) {
+    return perform("adopting", async () => {
+      const value = await invoke("adoptExistingExport", {
+        wxid,
+        directory,
+        confirmed: true,
+      });
+      exportToken.current = value.token;
+      setKeyReady(value.keyCached);
+      setExportState(value);
+      if (value.catalog) loadCatalog(value.catalog);
+      return value;
+    });
+  }
+  async function useExistingExport(directory) {
+    return perform("checking", async () => {
+      const value = await invoke("useExistingExport", { wxid, directory });
+      loadCatalog(value);
+      setExportState(null);
       return value;
     });
   }
@@ -343,6 +397,10 @@ export default function useRealMigration() {
     startKey,
     quitWeChat,
     exportDirectory,
+    exportCandidates,
+    exportState,
+    useExistingExport,
+    adoptExistingExport,
     chooseExportDirectory,
     startExport,
     openLocal,

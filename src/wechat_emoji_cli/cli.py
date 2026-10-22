@@ -44,6 +44,12 @@ def parser():
     extract.add_argument("--wxid")
     extract.add_argument("--out", required=True)
     extract.add_argument("--no-prepare", action="store_true")
+    exports = sub.add_parser("exports", help="Read-only local export discovery and validation")
+    export_actions = exports.add_subparsers(dest="action", required=True)
+    for name in ("status", "discover"):
+        ep = export_actions.add_parser(name)
+        ep.add_argument("directory")
+        ep.add_argument("--wxid", required=True, help="WeChat account associated with the export")
     images = sub.add_parser("images").add_subparsers(dest="action", required=True)
     for name in ("inspect", "prepare"):
         ip = images.add_parser(name)
@@ -187,6 +193,35 @@ def doctor():
     }
 
 
+def key_account(wxid):
+    """Resolve an existing account without permitting paths outside the configured root."""
+    from .engines.macos_backend import data_root
+
+    root = data_root().expanduser().resolve()
+    if wxid is not None and (
+        not wxid.startswith("wxid_") or Path(wxid).name != wxid or "\\" in wxid
+    ):
+        raise CommandError("INVALID_ACCOUNT", "Expected a local WeChat account identifier")
+    candidates = [root / wxid] if wxid else sorted(root.glob("wxid_*"))
+    accounts = []
+    for candidate in candidates:
+        account = candidate.resolve()
+        database = account / "db_storage/emoticon/emoticon.db"
+        if (
+            account.parent != root
+            or account.name != candidate.name
+            or not database.is_file()
+            or not database.resolve().is_relative_to(account)
+        ):
+            continue
+        accounts.append((account.name, database))
+    if not accounts:
+        raise CommandError("ACCOUNT_NOT_FOUND", "No matching local WeChat account database exists")
+    if len(accounts) != 1:
+        raise CommandError("ACCOUNT_REQUIRED", "Multiple local WeChat accounts found; specify --wxid")
+    return accounts[0]
+
+
 def dispatch(args, task):
     if args.command == "doctor":
         return doctor()
@@ -199,20 +234,28 @@ def dispatch(args, task):
 
         return {"accounts": accounts()}
     if args.command == "key":
+        from .engines.key_status import cached_key_valid
         from .engines.macos_backend import run_cli
 
+        wxid, database = key_account(args.wxid)
+        if not args.force and cached_key_valid(database, wxid):
+            return {"key_cached": True, "reused": True, "wxid": wxid}
         task.emit(
             "action_required",
             action="wechat_login",
-            message="Quit WeChat; log into the temporary copy and open the emoji panel.",
+            message="正在准备微信副本。如出现登录界面，请登录后等待；无需手动打开表情面板。",
         )
-        values = ["key", "--timeout", str(args.timeout)]
-        if args.wxid:
-            values += ["--wxid", args.wxid]
+        values = ["key", "--timeout", str(args.timeout), "--wxid", wxid]
         if args.force:
             values += ["--force"]
         run_cli(values)
-        return {"key_cached": True}  # Never expose the key through this CLI's protocol.
+        # Never expose the key through this CLI's protocol.
+        return {"key_cached": True, "reused": False, "wxid": wxid}
+    if args.command == "exports":
+        from .engines.export_state import discover, status
+
+        operation = status if args.action == "status" else discover
+        return operation(Path(args.directory).expanduser().resolve(), args.wxid)
     if args.command == "extract":
         from .engines.macos_backend import extract
 
@@ -356,7 +399,10 @@ def main(argv=None):
         # Legacy engines may print; JSON protocol owns stdout exclusively.
         with contextlib.redirect_stdout(sys.stderr):
             result = dispatch(args, task)
-        partial = bool(result.get("failed") or result.get("unknown") or result.get("remaining"))
+        # Inspecting an unfinished export succeeds even though that export has remaining work.
+        partial = args.command != "exports" and bool(
+            result.get("failed") or result.get("unknown") or result.get("remaining")
+        )
         task.finish(result, "partial" if partial else "complete")
         return 3 if partial else 0
     except KeyboardInterrupt:

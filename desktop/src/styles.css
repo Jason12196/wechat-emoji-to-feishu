@@ -1858,3 +1858,27 @@ h3 {
   font-size: 12px;
   flex-shrink: 0;
 }
+
+.export-reuse-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #36845a;
+  font-size: 12px;
+  margin: 15px 2px 0;
+}
+.partial-export-notice {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 20px;
+  border-radius: 16px;
+  background: #f0f2f0;
+  margin-bottom: 20px;
+  font-size: 13px;
+  color: #737773;
+}
+.partial-export-notice .text-button {
+  flex-shrink: 0;
+}

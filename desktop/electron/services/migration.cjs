@@ -14,14 +14,17 @@ class MigrationService {
       downloadsDirectory || path.join(os.homedir(), "Downloads");
     this.accounts = [];
     this.exports = new Map();
+    this.discoveredExports = new Map();
+    this.exportJobs = [];
+    this.exportPreferencesLoaded = false;
     this.catalogs = new Map();
     this.assets = new Map();
     this.plans = new Map();
     this.loginAccount = null;
   }
   async initialize() {
-    const result = await this.runner.run(["accounts"], "检测微信账号", 30000);
-    this.accounts = result.data.accounts;
+    await this.loadExportPreferences();
+    await this.refreshAccounts();
     const environment = await this.runner.run(
       ["doctor"],
       "检查运行环境",
@@ -45,32 +48,326 @@ class MigrationService {
     assert(account, "未知微信账号");
     return account;
   }
+  async refreshAccounts() {
+    const result = await this.runner.run(["accounts"], "检测微信账号", 30000);
+    this.accounts = result.data.accounts;
+    return this.accounts;
+  }
+  async loadExportPreferences() {
+    if (this.exportPreferencesLoaded) return;
+    const read = async (name, fallback) => {
+      try {
+        return JSON.parse(
+          await fs.readFile(path.join(this.home, "desktop", name), "utf8"),
+        );
+      } catch (error) {
+        if (error.code === "ENOENT") return fallback;
+        throw error;
+      }
+    };
+    const preferences = await read("preferences.json", {});
+    if (
+      typeof preferences.exportDirectory === "string" &&
+      path.isAbsolute(preferences.exportDirectory)
+    )
+      this.exportDirectory = preferences.exportDirectory;
+    const jobs = await read("export-jobs.json", []);
+    assert(Array.isArray(jobs), "导出准备记录格式不正确");
+    this.exportJobs = jobs.filter(
+      (job) =>
+        typeof job.wxid === "string" &&
+        typeof job.directory === "string" &&
+        path.isAbsolute(job.directory),
+    );
+    this.exportPreferencesLoaded = true;
+  }
+  async saveExportData(name, data) {
+    const directory = path.join(this.home, "desktop");
+    await fs.mkdir(directory, { recursive: true, mode: 0o700 });
+    const file = path.join(directory, name);
+    const temporary = `${file}.${randomUUID()}.tmp`;
+    await fs.writeFile(temporary, JSON.stringify(data, null, 2), {
+      mode: 0o600,
+      flag: "wx",
+    });
+    try {
+      await fs.rename(temporary, file);
+    } catch (error) {
+      await fs.rm(temporary, { force: true });
+      throw error;
+    }
+  }
+  async canonicalDirectory(directory) {
+    const absolute = path.resolve(directory);
+    try {
+      return await fs.realpath(absolute);
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        const parent = path.dirname(absolute);
+        if (parent === absolute) return absolute;
+        return path.join(
+          await this.canonicalDirectory(parent),
+          path.basename(absolute),
+        );
+      }
+      throw error;
+    }
+  }
   async chooseExportDirectory() {
+    await this.loadExportPreferences();
     const directory = await this.chooseDirectory(
       "选择表情导出位置",
       this.exportDirectory,
     );
-    if (directory) this.exportDirectory = directory;
+    if (directory) {
+      this.exportDirectory = directory;
+      this.discoveredExports.clear();
+      await this.saveExportData("preferences.json", {
+        exportDirectory: directory,
+      });
+    }
     return { directory: this.exportDirectory };
   }
-  async prepareExport({ wxid }) {
-    const account = this.account(wxid);
-    const parent = this.exportDirectory;
-    const token = randomUUID();
-    const directory = path.join(
-      parent,
-      `微信表情-${new Date().toISOString().replace(/[:.]/g, "-")}-${token.slice(0, 8)}`,
+  async readExportState(directory, wxid) {
+    const result = await this.runner.run(
+      ["exports", "status", directory, "--wxid", wxid],
+      "校验已有微信表情",
+      60000,
     );
-    await fs.mkdir(directory, { recursive: true, mode: 0o700 });
-    this.exports.set(token, { directory, wxid });
+    const state = result.data;
+    const expectedDirectory = await this.canonicalDirectory(directory);
+    assert(
+      ["none", "partial", "complete", "unbound"].includes(state.state) &&
+        typeof state.directory === "string" &&
+        (await this.canonicalDirectory(state.directory)) === expectedDirectory,
+      "导出记录返回的目录不正确",
+    );
+    assert(!state.wxid || state.wxid === wxid, "导出记录属于其他微信账号");
+    assert(
+      !["partial", "complete"].includes(state.state) || state.wxid === wxid,
+      "导出记录缺少当前微信账号绑定",
+    );
+    return { ...state, directory: expectedDirectory };
+  }
+  async findExports({ wxid }) {
+    await this.loadExportPreferences();
+    await this.refreshAccounts();
+    this.account(wxid);
     return {
-      token,
+      ...(await this.discoverExports(wxid)),
+      accounts: this.accounts.map(
+        ({ wxid, nickname, key_cached, running }) => ({
+          wxid,
+          nickname,
+          key_cached,
+          running,
+        }),
+      ),
+      keyCached: Boolean(this.account(wxid).key_cached),
+    };
+  }
+  async discoverExports(wxid) {
+    const result = await this.runner.run(
+      ["exports", "discover", this.exportDirectory, "--wxid", wxid],
+      "查找已有微信表情",
+      60000,
+    );
+    const parent = await this.canonicalDirectory(this.exportDirectory);
+    const exports = [];
+    this.discoveredExports.clear();
+    for (const item of result.data.exports || []) {
+      assert(
+        typeof item.directory === "string" && path.isAbsolute(item.directory),
+        "导出记录缺少有效目录",
+      );
+      const directory = await this.canonicalDirectory(item.directory);
+      assert(
+        directory === parent || path.dirname(directory) === parent,
+        "已有导出超出当前导出位置",
+      );
+      if (item.wxid && item.wxid !== wxid) continue;
+      assert(
+        ["partial", "complete", "unbound"].includes(item.state),
+        "无法识别已有导出的状态",
+      );
+      const entry = { ...item, directory };
+      exports.push(entry);
+      this.discoveredExports.set(directory, { wxid, parent });
+    }
+    return { directory: this.exportDirectory, exports };
+  }
+  exportToken(directory, wxid) {
+    const existing = [...this.exports].find(
+      ([, job]) => job.directory === directory && job.wxid === wxid,
+    );
+    if (existing) return existing[0];
+    const token = randomUUID();
+    this.exports.set(token, { directory, wxid });
+    return token;
+  }
+  async prepareExport({ wxid, directory: requestedDirectory }) {
+    assert(
+      requestedDirectory === undefined ||
+        typeof requestedDirectory === "string",
+      "请选择有效的导出目录",
+    );
+    await this.loadExportPreferences();
+    await this.refreshAccounts();
+    const account = this.account(wxid);
+    const discovered = await this.discoverExports(wxid);
+    const requested = requestedDirectory
+      ? await this.canonicalDirectory(requestedDirectory)
+      : null;
+    const candidate = requestedDirectory
+      ? discovered.exports.find((item) => item.directory === requested)
+      : discovered.exports.find((item) =>
+          ["complete", "partial"].includes(item.state),
+        );
+    if (requestedDirectory) assert(candidate, "该导出不在当前目录的发现记录中");
+    if (candidate) {
+      const state = await this.readExportState(candidate.directory, wxid);
+      assert(
+        state.wxid === wxid && ["complete", "partial"].includes(state.state),
+        "该目录尚未确认属于当前微信账号，请使用已有图片入口",
+      );
+      const common = {
+        ...state,
+        existing: state.state,
+        keyCached: Boolean(account.key_cached),
+        running: Boolean(account.running),
+      };
+      if (state.state === "complete")
+        return { ...common, catalog: await this.inspect(state.directory) };
+      return {
+        ...common,
+        token: this.exportToken(state.directory, wxid),
+        canResumeWithoutKey: Boolean(state.snapshot_ready),
+      };
+    }
+    const parent = await this.canonicalDirectory(this.exportDirectory);
+    let directory;
+    for (const job of this.exportJobs.toReversed()) {
+      if (
+        job.wxid !== wxid ||
+        (await this.canonicalDirectory(path.dirname(job.directory))) !== parent
+      )
+        continue;
+      try {
+        if (!(await fs.stat(job.directory)).isDirectory()) continue;
+      } catch (error) {
+        if (error.code === "ENOENT") continue;
+        throw error;
+      }
+      const state = await this.readExportState(job.directory, wxid);
+      if (
+        state.state === "none" &&
+        (await fs.readdir(job.directory)).length === 0
+      ) {
+        directory = state.directory;
+        break;
+      }
+    }
+    if (!directory)
+      directory = path.join(
+        parent,
+        `微信表情-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`,
+      );
+    await fs.mkdir(directory, { recursive: true, mode: 0o700 });
+    if (!this.exportJobs.some((job) => job.directory === directory)) {
+      this.exportJobs.push({ directory, wxid });
+      await this.saveExportData("export-jobs.json", this.exportJobs);
+    }
+    return {
+      existing: "none",
+      token: this.exportToken(directory, wxid),
+      directory,
       keyCached: Boolean(account.key_cached),
       running: Boolean(account.running),
     };
   }
+  async knownExportDirectory(directory, wxid) {
+    assert(typeof directory === "string", "请选择已有导出目录");
+    const chosen = await this.canonicalDirectory(directory);
+    const known = this.discoveredExports.get(chosen);
+    assert(
+      known &&
+        known.wxid === wxid &&
+        known.parent === (await this.canonicalDirectory(this.exportDirectory)),
+      "该目录不在当前账号的发现记录中，请重新检查已有导出",
+    );
+    return chosen;
+  }
+  async useExistingExport({ directory, wxid }) {
+    const chosen = await this.knownExportDirectory(directory, wxid);
+    const state = await this.readExportState(chosen, wxid);
+    assert(
+      state.state === "unbound" ||
+        (state.state === "complete" && state.wxid === wxid),
+      "该导出尚未完成或已变化，请重新检查后继续",
+    );
+    return {
+      ...(await this.inspect(chosen)),
+      exportState: state,
+    };
+  }
+  async adoptExistingExport({ directory, wxid, confirmed }) {
+    assert(confirmed === true, "请先确认旧导出属于当前微信账号");
+    const chosen = await this.knownExportDirectory(directory, wxid);
+    await this.refreshAccounts();
+    const account = this.account(wxid);
+    const before = await this.readExportState(chosen, wxid);
+    const knownJob = this.exportJobs.find((job) => job.directory === chosen);
+    assert(!knownJob || knownJob.wxid === wxid, "准备记录属于其他微信账号");
+    assert(
+      before.state === "unbound" &&
+        before.legacy_raw === true &&
+        Number.isInteger(before.raw_count) &&
+        before.raw_count > 0,
+      "该目录不是可继续的旧版原始文件导出，请重新检查已有导出",
+    );
+    try {
+      await fs.lstat(path.join(chosen, "export-report.json"));
+      assert(false, "该目录已有导出报告，请使用已有图片入口");
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    try {
+      await fs.writeFile(
+        path.join(chosen, "export-state.json"),
+        JSON.stringify({ version: 1, wxid, resources: null }, null, 2),
+        { flag: "wx", mode: 0o600 },
+      );
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      // Another attempt may have bound the directory after the status check.
+      // The authoritative status below must still confirm this same account.
+    }
+    const state = await this.readExportState(chosen, wxid);
+    assert(
+      state.wxid === wxid && ["partial", "complete"].includes(state.state),
+      "旧导出账号绑定失败，请保留原始文件并查看诊断记录",
+    );
+    if (!knownJob) {
+      this.exportJobs.push({ directory: chosen, wxid });
+      await this.saveExportData("export-jobs.json", this.exportJobs);
+    }
+    const prepared = {
+      ...state,
+      existing: state.state,
+      keyCached: Boolean(account.key_cached),
+      running: Boolean(account.running),
+    };
+    if (state.state === "complete")
+      return { ...prepared, catalog: await this.inspect(chosen) };
+    return {
+      ...prepared,
+      token: this.exportToken(chosen, wxid),
+      canResumeWithoutKey: Boolean(state.snapshot_ready),
+    };
+  }
   async key({ wxid }) {
-    this.account(wxid);
+    await this.refreshAccounts();
+    if (this.account(wxid).key_cached) return { keyCached: true, reused: true };
     const result = await this.runner.run(
       ["key", "--wxid", wxid],
       "获取微信密钥",
@@ -82,12 +379,23 @@ class MigrationService {
   async extract({ token }) {
     const job = this.exports.get(token);
     assert(job, "导出任务不存在");
-    const result = await this.runner.run(
-      ["extract", "--wxid", job.wxid, "--out", job.directory],
-      "导出微信表情",
-    );
+    const before = await this.readExportState(job.directory, job.wxid);
+    assert(before.state !== "unbound", "已有图片未绑定微信账号，不能继续导出");
+    const result =
+      before.state === "complete"
+        ? { data: { failed: 0 } }
+        : await this.runner.run(
+            ["extract", "--wxid", job.wxid, "--out", job.directory],
+            "导出微信表情",
+          );
+    const state = await this.readExportState(job.directory, job.wxid);
     const catalog = await this.inspect(job.directory);
-    return { ...catalog, failed: result.data.failed || 0 };
+    return {
+      ...catalog,
+      failed: result.data.failed || 0,
+      remaining: state.remaining,
+      exportState: state,
+    };
   }
   async openLocal() {
     const directory = await this.chooseDirectory("选择图片文件夹");
