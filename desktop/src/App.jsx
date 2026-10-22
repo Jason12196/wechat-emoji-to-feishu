@@ -9,6 +9,7 @@ import {
   Clock3,
   FolderOpen,
   LockKeyhole,
+  LoaderCircle,
   MoreHorizontal,
   Pause,
   Play,
@@ -92,7 +93,7 @@ export default function App() {
   const [filter, setFilter] = useState("all");
   const [preview, setPreview] = useState(null);
   const heading = useRef(null);
-  const automaticPreparation = useRef(false);
+  const keyPreparation = useRef(0);
   const busy = Boolean(m.operation);
   const visible = stickers.filter(
     (item) =>
@@ -123,31 +124,24 @@ export default function App() {
       m.startExport();
     else open("wechat-quit");
   }
-  useEffect(() => {
-    if (
-      m.real &&
-      !m.initializing &&
-      m.accounts.length === 1 &&
-      m.wxid &&
-      m.step === 0 &&
-      !busy &&
-      !m.error &&
-      !automaticPreparation.current
-    ) {
-      // Consume before opening the picker: cancellation must not reopen it.
-      automaticPreparation.current = true;
-      void begin("wechat");
+  async function prepareWeChat() {
+    if (m.real) {
+      const result = await m.quitWeChat();
+      if (!result?.exited) return;
     }
-  }, [
-    m.real,
-    m.initializing,
-    m.accounts?.length,
-    m.wxid,
-    m.step,
-    busy,
-    m.error,
-  ]);
+    const attempt = ++keyPreparation.current;
+    open("wechat-login");
+    const result = m.real
+      ? await m.startKey()
+      : await new Promise((resolve) =>
+          setTimeout(() => resolve({ keyCached: true }), 1400),
+        );
+    if (attempt !== keyPreparation.current || !result?.keyCached) return;
+    close();
+    await m.startExport();
+  }
   function dismissLogin() {
+    keyPreparation.current += 1;
     if (m.real && m.operation === "key") m.cancel();
     close();
   }
@@ -313,6 +307,32 @@ export default function App() {
                         )}
                       </div>
                     </button>
+                    <div className="export-directory">
+                      <FolderOpen size={15} aria-hidden="true" />
+                      <span className="export-directory-label">导出到</span>
+                      <span
+                        className="export-directory-path"
+                        title={m.real ? m.exportDirectory : "Downloads"}
+                      >
+                        {m.real && m.exportDirectory
+                          ? m.exportDirectory
+                              .split("/")
+                              .filter(Boolean)
+                              .at(-1) || m.exportDirectory
+                          : "Downloads"}
+                      </span>
+                      <button
+                        className="text-button"
+                        disabled={busy || (m.real && m.initializing)}
+                        onClick={
+                          m.real
+                            ? m.chooseExportDirectory
+                            : () => open("export-directory")
+                        }
+                      >
+                        更改
+                      </button>
+                    </div>
                     <button
                       className={`local-source ${source === "folder" ? "chosen" : ""}`}
                       onClick={() => begin("folder")}
@@ -847,23 +867,23 @@ export default function App() {
           <Diagnostics error={m.error} />
         </Modal>
       )}
+      {dialog === "export-directory" && (
+        <Modal
+          title="选择导出位置"
+          description="应用中会打开文件夹选择窗口，默认保存到 Downloads。"
+          onClose={close}
+          footer={<Button onClick={close}>知道了</Button>}
+        >
+          <p className="modal-note">当前是交互预览，不会更改本机文件。</p>
+        </Modal>
+      )}
       {dialog === "wechat-quit" && (
         <Modal
           title="先让微信休息一下"
           description="首次读取表情，需要先获取这台 Mac 的微信密钥。"
           onClose={busy ? undefined : close}
           footer={
-            <Button
-              disabled={busy}
-              onClick={async () => {
-                if (m.real) {
-                  const result = await m.quitWeChat();
-                  if (!result?.exited) return;
-                }
-                open("wechat-login");
-                if (m.real) m.startKey();
-              }}
-            >
+            <Button disabled={busy} onClick={prepareWeChat}>
               {busy ? "正在等待微信退出…" : "退出微信并继续"}
               <ArrowRight size={16} />
             </Button>
@@ -876,7 +896,7 @@ export default function App() {
             请先完成聊天、通话或文件传输。退出成功后会自动继续。
           </GuideRow>
           <GuideRow number="2" title="接下来会打开一个微信副本">
-            在副本中登录，并打开一次表情面板。不会修改原微信应用。
+            如出现登录窗口，按提示登录即可。准备好后会自动开始读取。
           </GuideRow>
           {!m.real && (
             <p className="modal-note">交互预览：不会关闭或启动真实微信。</p>
@@ -885,56 +905,39 @@ export default function App() {
       )}
       {dialog === "wechat-login" && (
         <Modal
-          title="在微信副本中完成登录"
-          description={
-            m.real
-              ? m.keyReady
-                ? "密钥已准备好，可以继续导出。"
-                : m.message || "正在打开微信副本，请完成登录。"
-              : "真实使用时，微信登录窗口会单独打开。"
-          }
+          title="正在准备微信"
+          description="准备完成后会自动读取表情，无需额外确认。"
           onClose={dismissLogin}
           footer={
-            <Button
-              disabled={!confirmed || (m.real && !m.keyReady)}
-              onClick={() => {
-                close();
-                m.startExport();
-              }}
-            >
-              开始读取表情
-              <ArrowRight size={16} />
+            <Button secondary onClick={dismissLogin}>
+              取消
             </Button>
           }
         >
-          <div className="login-preview">
-            <BrandLogo brand="wechat" />
-            <span>微信登录窗口</span>
-            <span className="small-tag">
-              {m.real ? "独立窗口" : "独立窗口 · 演示"}
-            </span>
+          <div className="wechat-preparing" role="status" aria-live="polite">
+            <div className="wechat-preparing-icon">
+              <BrandLogo brand="wechat" />
+            </div>
+            <LoaderCircle
+              className="preparing-spinner"
+              size={25}
+              aria-hidden="true"
+            />
+            <strong>请稍等，正在准备读取表情…</strong>
+            <p>如果出现微信登录窗口，按提示完成登录即可。</p>
           </div>
-          <GuideRow number="1" title="登录你要导出的微信账号">
-            按窗口提示扫码登录，并确认账号正确。
-          </GuideRow>
-          <GuideRow number="2" title="打开一次表情面板">
-            这会让取密钥工具完成准备，随后自动导出。
-          </GuideRow>
-          <CheckLine checked={confirmed} onChange={setConfirmed}>
-            我已登录，并打开了表情面板
-          </CheckLine>
-          <button
-            className="text-button modal-help"
-            onClick={() => open("export-error")}
-          >
-            窗口闪退或打不开？
-          </button>
+          <p className="modal-note">
+            微信副本可能会自动关闭，是否成功以这里的任务状态为准。
+          </p>
+          {!m.real && (
+            <p className="modal-note">交互预览：不会操作真实微信。</p>
+          )}
         </Modal>
       )}
       {dialog === "export-error" && (
         <Modal
           title="微信没有准备好"
-          description="副本可能意外退出，或还没有完成登录。本次尚未导出。"
+          description="尚未获取到读取权限，本次没有完成导出。"
           onClose={() => {
             m.setError(null);
             close();
@@ -965,7 +968,7 @@ export default function App() {
           <div className="notice-block">
             <strong>先检查这三件事</strong>
             <p>
-              原微信是否已完全退出；登录的是否为目标账号；是否打开过表情面板。
+              原微信是否已完全退出；副本是否完成登录；诊断中是否有启动或密钥错误。
             </p>
             <p>如果仍然闪退，请保留终端错误与微信版本，不要反复扫码登录。</p>
           </div>

@@ -91,10 +91,11 @@ app.whenReady().then(() => {
   });
   service = new MigrationService({
     runner,
-    chooseDirectory: async (title) => {
+    downloadsDirectory: app.getPath("downloads"),
+    chooseDirectory: async (title, defaultPath = app.getPath("downloads")) => {
       const result = await dialog.showOpenDialog(window, {
         title,
-        defaultPath: app.getPath("downloads"),
+        defaultPath,
         properties: ["openDirectory", "createDirectory"],
       });
       return result.canceled ? null : result.filePaths[0];
@@ -123,6 +124,7 @@ app.whenReady().then(() => {
       if (
         [
           "initialize",
+          "chooseExportDirectory",
           "prepareExport",
           "key",
           "extract",

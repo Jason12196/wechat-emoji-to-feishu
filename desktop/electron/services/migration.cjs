@@ -1,14 +1,17 @@
 const fs = require("node:fs/promises");
 const syncFs = require("node:fs");
 const path = require("node:path");
+const os = require("node:os");
 const { randomUUID, createHash } = require("node:crypto");
 const { failure, assert } = require("./errors.cjs");
 
 class MigrationService {
-  constructor({ runner, chooseDirectory }) {
+  constructor({ runner, chooseDirectory, downloadsDirectory }) {
     this.runner = runner;
     this.home = runner.home;
     this.chooseDirectory = chooseDirectory;
+    this.exportDirectory =
+      downloadsDirectory || path.join(os.homedir(), "Downloads");
     this.accounts = [];
     this.exports = new Map();
     this.catalogs = new Map();
@@ -34,6 +37,7 @@ class MigrationService {
         }),
       ),
       environment: environment.data,
+      exportDirectory: this.exportDirectory,
     };
   }
   account(wxid) {
@@ -41,14 +45,21 @@ class MigrationService {
     assert(account, "未知微信账号");
     return account;
   }
+  async chooseExportDirectory() {
+    const directory = await this.chooseDirectory(
+      "选择表情导出位置",
+      this.exportDirectory,
+    );
+    if (directory) this.exportDirectory = directory;
+    return { directory: this.exportDirectory };
+  }
   async prepareExport({ wxid }) {
     const account = this.account(wxid);
-    const parent = await this.chooseDirectory("选择表情导出位置");
-    if (!parent) return null;
+    const parent = this.exportDirectory;
     const token = randomUUID();
     const directory = path.join(
       parent,
-      `微信表情-${new Date().toISOString().replace(/[:.]/g, "-")}`,
+      `微信表情-${new Date().toISOString().replace(/[:.]/g, "-")}-${token.slice(0, 8)}`,
     );
     await fs.mkdir(directory, { recursive: true, mode: 0o700 });
     this.exports.set(token, { directory, wxid });

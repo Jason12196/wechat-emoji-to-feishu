@@ -16,8 +16,14 @@ test.beforeEach(async () => {
     ),
   );
   fs.chmodSync(cli, 0o700);
+  const bootstrap = path.join(folder, "bootstrap.cjs");
+  fs.writeFileSync(
+    bootstrap,
+    `require("electron").app.setPath("downloads", ${JSON.stringify(folder)});
+require(${JSON.stringify(path.join(root, "electron/main.cjs"))});`,
+  );
   app = await electron.launch({
-    args: [root],
+    args: [bootstrap],
     env: {
       ...process.env,
       WECHAT_EMOJI_CLI: cli,
@@ -40,7 +46,10 @@ test.afterEach(async () => {
 });
 test("Real Electron IPC: source, local assets, offline plan, login confirmation and import", async () => {
   const page = await app.firstWindow();
-  // A single detected account advances without a second source-card click.
+  await expect(page.getByLabel("微信账号")).toHaveValue("wxid_fixture");
+  await page
+    .getByRole("button", { name: "从微信收藏导出", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "每一张，都很有你。" }),
   ).toBeVisible();
@@ -79,7 +88,7 @@ test("Real Electron IPC: source, local assets, offline plan, login confirmation 
   );
   expect(calls.filter((args) => args[1] === "import")).toHaveLength(1);
 });
-test("Canceling automatic export preparation stays on the source page", async () => {
+test("Export directory picker opens only from Change, and cancellation stays on source", async () => {
   await app.evaluate(({ dialog }) => {
     globalThis.pickerCalls = 0;
     dialog.showOpenDialog = async () => {
@@ -89,14 +98,19 @@ test("Canceling automatic export preparation stays on the source page", async ()
   });
   const page = await app.firstWindow();
   await expect(page.getByLabel("微信账号")).toHaveValue("wxid_fixture");
-  await expect.poll(() => app.evaluate(() => globalThis.pickerCalls)).toBe(1);
+  expect(await app.evaluate(() => globalThis.pickerCalls)).toBe(0);
+  const before = await page.locator(".export-directory-path").textContent();
   await expect(page.locator(".bottom-bar")).toHaveCount(0);
-  await page.waitForTimeout(1000);
-  expect(await app.evaluate(() => globalThis.pickerCalls)).toBe(1);
+  await page.getByRole("button", { name: "更改", exact: true }).click();
+  await expect.poll(() => app.evaluate(() => globalThis.pickerCalls)).toBe(1);
+  await expect(page.locator(".export-directory-path")).toHaveText(before);
   await page
     .getByRole("button", { name: "从微信收藏导出", exact: true })
     .click();
-  await expect.poll(() => app.evaluate(() => globalThis.pickerCalls)).toBe(2);
+  await expect(
+    page.getByRole("heading", { name: "每一张，都很有你。" }),
+  ).toBeVisible();
+  expect(await app.evaluate(() => globalThis.pickerCalls)).toBe(1);
 });
 test("Real Electron: missing CLI exposes actionable diagnostics", async () => {
   await app.close();
@@ -127,6 +141,10 @@ test("Canceling native WeChat quit confirmation never starts key capture", async
   });
   const page = await app.firstWindow();
   await page.reload();
+  await expect(page.getByLabel("微信账号")).toHaveValue("wxid_fixture");
+  await page
+    .getByRole("button", { name: "从微信收藏导出", exact: true })
+    .click();
   await expect(
     page.getByRole("button", { name: "退出微信并继续", exact: true }),
   ).toBeVisible();

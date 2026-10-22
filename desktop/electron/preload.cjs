@@ -3,6 +3,7 @@ const call = (method, payload) =>
   ipcRenderer.invoke("migration:call", method, payload);
 contextBridge.exposeInMainWorld("migration", {
   initialize: () => call("initialize"),
+  chooseExportDirectory: () => call("chooseExportDirectory"),
   prepareExport: (payload) => call("prepareExport", payload),
   quitWeChat: () => call("quitWeChat"),
   key: (payload) => call("key", payload),

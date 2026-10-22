@@ -1791,3 +1791,70 @@ h3 {
 .main-content.source-content {
   padding-top: clamp(55px, 8vh, 90px);
 }
+
+.wechat-preparing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0 22px;
+  text-align: center;
+}
+.wechat-preparing-icon {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 24px;
+  background: #07c160;
+  margin-bottom: 10px;
+}
+.wechat-preparing-icon img {
+  width: 48px;
+  height: 48px;
+}
+.wechat-preparing p {
+  color: #8a8a8a;
+  font-size: 13px;
+  margin: 0;
+}
+.preparing-spinner {
+  color: #07a952;
+  animation: preparing-spin 1s linear infinite;
+}
+@keyframes preparing-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .preparing-spinner {
+    animation: none;
+  }
+}
+
+.export-directory {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 15px 2px 3px;
+  min-width: 0;
+  color: #8b8b8b;
+  font-size: 12px;
+}
+.export-directory-label {
+  flex-shrink: 0;
+}
+.export-directory-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+.export-directory .text-button {
+  margin-left: auto;
+  font-size: 12px;
+  flex-shrink: 0;
+}

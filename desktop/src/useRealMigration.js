@@ -19,6 +19,7 @@ export default function useRealMigration() {
     [loggedIn, setLoggedIn] = useState(false);
   const [existing, setExisting] = useState(""),
     [account, setAccount] = useState("我的飞书");
+  const [exportDirectory, setExportDirectory] = useState("");
   const [recoveryJob, setRecoveryJob] = useState(null);
   const [recoverySummary, setRecoverySummary] = useState(null);
   const [history, setHistory] = useState([]),
@@ -94,7 +95,7 @@ export default function useRealMigration() {
       } else if (event.type === "action_required")
         setMessage(
           event.action === "wechat_login"
-            ? "等待微信登录与表情面板…"
+            ? "正在准备微信，如出现登录窗口请按提示登录…"
             : "等待飞书登录…",
         );
     });
@@ -105,6 +106,7 @@ export default function useRealMigration() {
         setAccounts(data.accounts);
         setWxid(data.accounts[0]?.wxid || "");
         setEnvironment(data.environment);
+        setExportDirectory(data.exportDirectory);
       })
       .catch((cause) => {
         if (live) setError(cause);
@@ -149,6 +151,13 @@ export default function useRealMigration() {
         exportToken.current = value.token;
         setKeyReady(value.keyCached);
       }
+      return value;
+    });
+  }
+  async function chooseExportDirectory() {
+    return perform("directory", async () => {
+      const value = await invoke("chooseExportDirectory");
+      if (value) setExportDirectory(value.directory);
       return value;
     });
   }
@@ -333,6 +342,8 @@ export default function useRealMigration() {
     prepareExport,
     startKey,
     quitWeChat,
+    exportDirectory,
+    chooseExportDirectory,
     startExport,
     openLocal,
     login,

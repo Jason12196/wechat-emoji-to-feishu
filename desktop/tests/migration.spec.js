@@ -11,12 +11,10 @@ async function exportDemo(page, cached = false) {
     ).toBeEnabled();
     await page.getByRole("button", { name: "退出微信并继续" }).click();
     await expect(
-      page.getByRole("button", { name: "开始读取表情" }),
-    ).toBeDisabled();
-    await page
-      .getByRole("checkbox", { name: "我已登录，并打开了表情面板" })
-      .check();
-    await page.getByRole("button", { name: "开始读取表情" }).click();
+      page.getByRole("dialog", { name: "正在准备微信" }),
+    ).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("checkbox")).toHaveCount(0);
+    await expect(page.locator(".preparing-spinner")).toBeVisible();
   }
   await expect(
     page.getByRole("heading", { name: "每一张，都很有你。" }),
@@ -129,19 +127,21 @@ test("Dialog escape returns focus and reduced motion disables entrance effects",
   await expect(page.locator(".page-enter")).toHaveCSS("animation-name", "none");
 });
 
-test("Exit prompt provides a failure path without exporting", async ({
+test("Canceling WeChat preparation does not export after its wait completes", async ({
   page,
 }) => {
   await page
     .getByRole("button", { name: "从微信收藏导出", exact: true })
     .click();
   await page.getByRole("button", { name: "退出微信并继续" }).click();
-  await page.getByRole("button", { name: "窗口闪退或打不开？" }).click();
   await expect(
-    page.getByRole("dialog", { name: "微信没有准备好" }),
+    page.getByRole("dialog", { name: "正在准备微信" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "重新准备微信" }).click();
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await page.waitForTimeout(1700);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "退出微信并继续" }),
-  ).toBeEnabled();
+    page.getByRole("heading", { name: "把微信表情 带到飞书。" }),
+  ).toBeVisible();
+  await expect(page.locator(".sticker-tile")).toHaveCount(0);
 });
