@@ -17,7 +17,16 @@ jobs:
       - run: ruff check src tests
       - run: python -m unittest discover -s tests -v
   rust:
-    runs-on: macos-latest
+    name: Mac CLI (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - run: cargo test --locked --release --manifest-path vendor/wxemoticon/cli/Cargo.toml
@@ -33,6 +42,6 @@ jobs:
           dist/wechat-emoji/wechat-emoji --home "$RUNNER_TEMP/cli-state" --wechat-root "$RUNNER_TEMP/no-wechat" --json doctor
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-cli
+          name: macos-cli-${{ matrix.arch }}
           path: dist/wechat-emoji-macos-*.tar.gz
           retention-days: 7

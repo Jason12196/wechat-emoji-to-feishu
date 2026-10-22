@@ -26,7 +26,7 @@ cd wechat-emoji
 ./wechat-emoji browser install
 ```
 
-无需安装 Python、Rust 或 Xcode。当前包是本机测试产物，尚未作为 GitHub Release 发布；签名、公证与干净机器验收仍需完成。Intel 需要在对应架构另行构建验证，不能使用 arm64 包。
+无需安装 Python、Rust 或 Xcode。当前包是本机测试产物，尚未作为 GitHub Release 发布；签名、公证与干净机器验收仍需完成。Intel 提供独立的 x86_64 包，不能使用 arm64 包。CI 分别使用 macos-15（Apple Silicon）和 macos-15-intel 构建、测试、检查启动；真实微信取密钥与飞书导入目前只有 Apple Silicon 的历史本机验证。
 
 开发者打包：完成下方源码安装后，执行 `python -m pip install pyinstaller`，再执行 `python scripts/package-macos.py`，产物位于 dist。脚本只打包项目资源，不收集用户密钥、图片或登录配置。
 
@@ -88,4 +88,4 @@ gh auth status --hostname github.com
 
 仓库 Settings → Actions → General 中确保允许 GitHub 官方 Actions。当前工作流只使用 actions/checkout、actions/setup-python、actions/upload-artifact，且只需 contents: read；不需要将 Workflow permissions 改成 Read and write。
 
-配置提交后，即可在仓库 Actions 页查看运行。当前工作流检查 Python 与 Rust 测试，并构建 Mac CLI、检查启动和保留 7 天测试产物。不执行真实微信提取或飞书上传；CI 产物不等同于已签名公证的正式 Release。
+配置提交后，即可在仓库 Actions 页查看运行。当前工作流检查 Python 与 Rust 测试，并分别构建 Apple Silicon / Intel Mac CLI、检查启动和保留 7 天测试产物。不执行真实微信提取或飞书上传；CI 产物不等同于已签名公证的正式 Release。
