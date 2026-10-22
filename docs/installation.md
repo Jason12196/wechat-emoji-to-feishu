@@ -55,7 +55,7 @@ wechat-emoji doctor
 
 ## CI 授权与启用
 
-目前只有 `docs/ci-workflow.example.yml` 模板，尚未在 GitHub Actions 生效。已有凭据有 repo 权限，缺少创建/更新 workflow 文件的 workflow scope。
+CI 配置位于 `.github/workflows/ci.yml`，在 push、pull request 或手动触发时运行。维护者创建/更新 workflow 文件所用凭据需要 workflow scope；首次授权步骤如下。
 
 在本机终端执行：
 
@@ -71,6 +71,6 @@ gh auth status --hostname github.com
 
 确认 Token scopes 包含 workflow。官方说明：https://cli.github.com/manual/gh_auth_refresh
 
-仓库 Settings → Actions → General 中确保允许 GitHub 官方 Actions。当前模板只使用 actions/checkout、actions/setup-python，且只需 contents: read；不需要将 Workflow permissions 改成 Read and write。
+仓库 Settings → Actions → General 中确保允许 GitHub 官方 Actions。当前工作流只使用 actions/checkout、actions/setup-python，且只需 contents: read；不需要将 Workflow permissions 改成 Read and write。
 
-授权完成后，将已审阅模板放入 `.github/workflows/ci.yml` 并提交，即可在仓库 Actions 页查看运行。当前模板检查 Python 与 Rust 测试，不执行真实微信提取或飞书上传，也尚未自动产出安装包。后续打包发布工作流另行增加。
+配置提交后，即可在仓库 Actions 页查看运行。当前工作流检查 Python 与 Rust 测试，不执行真实微信提取或飞书上传，也尚未自动产出安装包。后续打包发布工作流另行增加。
