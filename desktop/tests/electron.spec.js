@@ -5,8 +5,10 @@ import os from "node:os";
 import path from "node:path";
 const root = path.resolve(import.meta.dirname, "..");
 const cli = path.join(root, "tests/fixtures/cli.cjs");
+const missingCliTest =
+  "Real Electron: missing CLI exposes actionable diagnostics";
 let app, folder;
-test.beforeEach(async () => {
+test.beforeEach(async ({}, testInfo) => {
   folder = fs.mkdtempSync(path.join(os.tmpdir(), "emoji-electron-"));
   const image = path.join(folder, "fixture.png");
   fs.writeFileSync(
@@ -28,7 +30,8 @@ require(${JSON.stringify(path.join(root, "electron/main.cjs"))});`,
     args: [bootstrap],
     env: {
       ...process.env,
-      WECHAT_EMOJI_CLI: cli,
+      WECHAT_EMOJI_CLI:
+        testInfo.title === missingCliTest ? path.join(folder, "missing") : cli,
       WECHAT_EMOJI_HOME: path.join(folder, "state"),
       TEST_IMAGE: image,
       TEST_ACCOUNTS_DELAY: "700",
@@ -114,17 +117,7 @@ test("Export directory picker opens only from Change, and cancellation stays on 
   ).toBeVisible();
   expect(await app.evaluate(() => globalThis.pickerCalls)).toBe(1);
 });
-test("Real Electron: missing CLI exposes actionable diagnostics", async () => {
-  await app.close();
-  app = await electron.launch({
-    executablePath: electronPath,
-    args: [root],
-    env: {
-      ...process.env,
-      WECHAT_EMOJI_CLI: path.join(folder, "missing"),
-      WECHAT_EMOJI_HOME: path.join(folder, "failure"),
-    },
-  });
+test(missingCliTest, async () => {
   // An explicit override must never silently fall back to another installed CLI.
   const page = await app.firstWindow();
   await expect(page.getByRole("dialog")).toBeVisible();
