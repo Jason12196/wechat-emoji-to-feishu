@@ -1,0 +1,5 @@
+# GitHub source downloads contain editable code, never test fixtures or CI-only files.
+/.github export-ignore
+/tests export-ignore
+/desktop/tests export-ignore
+/desktop/playwright.config.js export-ignore

@@ -7,4 +7,4 @@ Rust modifications: --metadata-out for private resource metadata; Rust 1.85-comp
 
 This repository contains no WeChat databases, keys, resource URLs, browser profiles, user images or session recordings.
 
-Desktop interface: WeChat brand mark from Simple Icons (CC0); Feishu brand mark from its official website favicon. See desktop/README.md for source links. Brand marks identify the services used and do not indicate affiliation.
+Desktop interface: WeChat brand mark from [Simple Icons (CC0)](https://github.com/simple-icons/simple-icons/blob/develop/icons/wechat.svg); Feishu brand mark from its [official website favicon](https://www.feishu.cn/favicon.ico). Brand marks identify the services used and do not indicate affiliation.

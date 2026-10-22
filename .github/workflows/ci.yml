@@ -1,4 +1,4 @@
-name: CLI checks
+name: Build and checks
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
@@ -17,7 +17,7 @@ jobs:
       - run: ruff check src tests
       - run: python -m unittest discover -s tests -v
   rust:
-    name: Mac CLI (${{ matrix.arch }})
+    name: Mac packages (${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
@@ -43,7 +43,27 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: macos-cli-${{ matrix.arch }}
-          path: dist/wechat-emoji-macos-*.tar.gz
+          path: dist/wechat-emoji-macos-*.tar.gz*
+          retention-days: 7
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir desktop build
+      - run: python scripts/package-source.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-source-${{ matrix.arch }}
+          path: dist/wechat-emoji-source-macos-*.zip*
+          retention-days: 7
+      - run: python scripts/package-desktop.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-desktop-${{ matrix.arch }}
+          path: dist/wechat-emoji-desktop-macos-*.zip*
           retention-days: 7
 
   desktop:
@@ -51,16 +71,13 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
-      - run: npm ci
-        working-directory: desktop
-      - run: npm run check && npm run build && npm run test:bridge
-        working-directory: desktop
-      - run: npx playwright install chromium
-        working-directory: desktop
-      - run: npm test -- --workers=2
-        working-directory: desktop
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir desktop check && pnpm --dir desktop build && pnpm --dir desktop test:bridge
+      - run: pnpm --dir desktop exec playwright install chromium
+      - run: pnpm --dir desktop test --workers=2

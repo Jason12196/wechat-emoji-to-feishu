@@ -1,4 +1,5 @@
 import { test, expect, _electron as electron } from "@playwright/test";
+import electronPath from "electron";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -23,6 +24,7 @@ test.beforeEach(async () => {
 require(${JSON.stringify(path.join(root, "electron/main.cjs"))});`,
   );
   app = await electron.launch({
+    executablePath: electronPath,
     args: [bootstrap],
     env: {
       ...process.env,
@@ -115,6 +117,7 @@ test("Export directory picker opens only from Change, and cancellation stays on 
 test("Real Electron: missing CLI exposes actionable diagnostics", async () => {
   await app.close();
   app = await electron.launch({
+    executablePath: electronPath,
     args: [root],
     env: {
       ...process.env,

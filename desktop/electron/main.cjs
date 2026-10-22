@@ -16,6 +16,9 @@ const { pathToFileURL } = require("node:url");
 const { CliRunner } = require("./services/runner.cjs");
 const { MigrationService } = require("./services/migration.cjs");
 const { failure, redact } = require("./services/errors.cjs");
+app.setName("表情迁移");
+process.title = "表情迁移";
+const iconPath = path.join(__dirname, "../assets/icon.png");
 protocol.registerSchemesAsPrivileged([
   {
     scheme: "emoji",
@@ -39,6 +42,7 @@ function createWindow() {
     minWidth: 920,
     minHeight: 680,
     title: "表情迁移",
+    icon: iconPath,
     backgroundColor: "#fafafa",
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 22, y: 22 },
@@ -78,6 +82,7 @@ function createWindow() {
   window.loadFile(uiPath);
 }
 app.whenReady().then(() => {
+  if (process.platform === "darwin") app.dock.setIcon(iconPath);
   const home =
     process.env.WECHAT_EMOJI_HOME ||
     path.join(app.getPath("appData"), "wechat-emoji-to-feishu");

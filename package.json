@@ -1,0 +1,18 @@
+{
+  "name": "wechat-emoji-to-feishu",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=10 <11"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "postinstall": "pnpm --dir desktop exec install-electron"
+  },
+  "devDependencies": {
+    "tar": "7.5.22"
+  }
+}

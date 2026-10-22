@@ -17,13 +17,36 @@ if not engine.is_file():
     raise SystemExit("Run ./scripts/build-engine.sh first")
 subprocess.run([
     sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir",
-    "--name", "wechat-emoji", "--collect-all", "playwright", "--collect-all", "Crypto",
+    "--name", "wechat-emoji", "--collect-data", "playwright", "--exclude-module", "Crypto.SelfTest",
+    "--strip",
     "--add-binary", f"{engine}:runtime/bin", "--paths", str(root / "src"),
     "--specpath", str(root / "build"), str(root / "scripts/cli-entry.py"),
 ], cwd=root, check=True)
 folder = root / "dist/wechat-emoji"
-for name in ("LICENSE", "THIRD_PARTY.md", "README.md"):
+for name in ("LICENSE", "THIRD_PARTY.md"):
     shutil.copy2(root / name, folder / name)
+(folder / "README.md").write_text("""# 表情迁移 CLI
+
+将微信收藏表情导出到本机，或导入飞书个人自定义表情。目前支持 macOS。
+本压缩包已包含 Python、提取引擎及运行依赖；首次登录飞书时会自动下载浏览器。
+
+在终端进入本目录运行：
+
+```sh
+./wechat-emoji --help
+./wechat-emoji doctor
+```
+
+请保留整个文件夹，不能只移动其中的 wechat-emoji 可执行文件。
+本项目目前没有 Apple Developer ID 签名或公证；如系统阻止打开，请在尝试运行后到
+系统设置 → 隐私与安全性查看“仍要打开”，或改用源码启动包。
+
+完整安装说明、命令示例、Electron 和 Codex / Claude Code 使用方式：
+[项目 README](https://github.com/Jason12196/wechat-emoji-to-feishu#readme)。
+
+包内不包含使用者的登录状态、密钥、表情图片、导入记录或诊断日志。
+开源许可保留在 LICENSE、THIRD_PARTY.md 和 dependency-licenses 中。
+""", encoding="utf-8")
 documentation = folder / "docs"
 documentation.mkdir(exist_ok=True)
 for name in ("installation.md", "protocol.md"):

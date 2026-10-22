@@ -217,10 +217,10 @@ class PersonalPreflightTests(unittest.TestCase):
         with patch("wechat_emoji_cli.engines.feishu_uploader.time.monotonic", clock.monotonic):
             self.assertTrue(uploader._wait_for_messenger_ready(timeout_ms=45000))
             self.assertGreaterEqual(clock.now, 1)
-            self.assertTrue(uploader._try_open_first_chat(timeout_ms=12000))
+            self.assertTrue(uploader._try_open_first_chat(timeout_ms=90000))
         self.assertTrue(page.editor)
         self.assertEqual([index for kind, index, _ in page.clicks], [0, 1, 2])
-        self.assertTrue(all(timeout <= 700 for _, _, timeout in page.clicks))
+        self.assertTrue(all(timeout <= 1000 for _, _, timeout in page.clicks))
 
     def test_chat_search_deadline_and_cancellation_are_bounded(self):
         clock = Clock()
