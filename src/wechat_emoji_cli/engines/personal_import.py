@@ -13,8 +13,6 @@ from . import config
 def upload(uploader, files, stop_check=None, batch_size=10, ledger_path=None):
     ledger_path = ledger_path or os.environ.get("WECHATEMOJI_IMPORT_LEDGER")
     if ledger_path is None:
-        from . import config
-
         ledger_path = Path(config.DATA_DIR) / "imports" / f"{time.time_ns()}.json"
     ledger_path = Path(ledger_path)
     state = json.loads(ledger_path.read_text()) if ledger_path.exists() else {}

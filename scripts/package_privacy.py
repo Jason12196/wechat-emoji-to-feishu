@@ -26,7 +26,7 @@ _STATE_COMPONENTS = {
 _STATE_FILES = {
     "cookies", "cookies-journal", "login data", "login data-journal", "local state",
     "history", "history-journal", "web data", "web data-journal", "preferences",
-    "secure preferences", "export-report.json", "export-state.json", "ledger.json",
+    "secure preferences", "devtoolsactiveport", "export-report.json", "export-state.json", "ledger.json",
     "cookies.sqlite", "cookies.sqlite-wal", "storage-state.json", "storage_state.json",
     "auth.json", "session.json", "emoticon.db", "emoticon.db-wal", "emoticon.db-shm",
     ".ds_store", ".env",

@@ -138,6 +138,7 @@ class FeishuUploader:
         self._timeout_error = Exception
         self._profile_clone_dir: Optional[str] = None
         self._launch_mode = "playwright"
+        self._keep_browser_open = False
         self._debug_dir = config.DEBUG_DIR
 
     def _report(self, message: str, current: int = 0, total: int = 0) -> None:
@@ -173,6 +174,26 @@ class FeishuUploader:
         sync_playwright, timeout_error = _load_playwright()
         self._timeout_error = timeout_error
         self._playwright_driver = sync_playwright().start()
+        if sys.platform == "darwin" and not self.headless:
+            from .browser_session import attach_or_launch
+
+            profile = Path(config.DATA_DIR) / "feishu-browser"
+            try:
+                self._browser, self._context, self._page, reused = attach_or_launch(
+                    self._playwright_driver, profile, self._report,
+                )
+            except Exception:
+                try:
+                    self._playwright_driver.stop()
+                except Exception:
+                    pass
+                self._playwright_driver = None
+                raise
+            self._keep_browser_open = True
+            self._page.set_default_timeout(config.PAGE_TIMEOUT)
+            self._launch_mode = "mac-shared-chromium"
+            self._report("[浏览器] 已复用当前飞书窗口" if reused else "[浏览器] 飞书窗口已打开，登录后会一直保留")
+            return
         if sys.platform == "darwin":
             profile = Path(config.DATA_DIR) / "feishu-browser"
             self._context = self._playwright_driver.chromium.launch_persistent_context(
@@ -250,6 +271,9 @@ class FeishuUploader:
     def login(self, stop_check: StopCheck = None) -> bool:
         """打开飞书，等待用户扫码或检测已有登录态。"""
         self._report(f"[登录] 正在打开飞书…（模式: {self._launch_mode}）")
+        if self._keep_browser_open and self._is_logged_in():
+            self._report("[登录] 当前窗口已登录，保留当前页面并继续")
+            return True
         try:
             self._page.goto(config.FEISHU_MESSENGER_URL, wait_until="domcontentloaded")
             self._page.wait_for_load_state("load", timeout=8000)
@@ -605,12 +629,17 @@ class FeishuUploader:
             return []
 
     def close(self):
-        """关闭浏览器，保存登录态。"""
-        for obj, method in (
-            (self._context, "close"),
-            (self._browser, "close"),
-            (self._playwright_driver, "stop"),
-        ):
+        """Detach from shared windows; close only browsers owned by this command."""
+        targets = (
+            ((self._playwright_driver, "stop"),)
+            if self._keep_browser_open
+            else (
+                (self._context, "close"),
+                (self._browser, "close"),
+                (self._playwright_driver, "stop"),
+            )
+        )
+        for obj, method in targets:
             if obj:
                 try:
                     getattr(obj, method)()
