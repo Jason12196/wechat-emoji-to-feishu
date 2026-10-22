@@ -326,55 +326,68 @@ class FeishuUploader:
         return False
 
     def _try_open_first_chat(
-        self, timeout_ms: int = 12000, stop_check: StopCheck = None
+        self, timeout_ms: int = config.WRITABLE_CHAT_TIMEOUT, stop_check: StopCheck = None
     ) -> bool:
-        """Find a writable editor with a total deadline; never type or send."""
+        """Wait for a writable conversation without rapidly switching chats."""
         if not self._page:
             return False
         deadline = time.monotonic() + timeout_ms / 1000
-        if self._writable_editor_visible():
-            return True
+        attempted = set()
         clicked = 0
-        for selector in _SIDEBAR_CHAT_SELECTORS:
-            if time.monotonic() >= deadline or self._stop_requested(stop_check):
+        next_attempt = 0.0
+        next_report = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            if self._stop_requested(stop_check):
                 return False
-            try:
-                items = self._page.locator(selector)
-                count = min(items.count(), 10)
-            except Exception:
-                continue
-            for index in range(count):
-                if time.monotonic() >= deadline or clicked >= 10 or self._stop_requested(stop_check):
-                    return False
-                try:
-                    item = items.nth(index)
-                    if not item.is_visible():
+            if self._writable_editor_visible():
+                return True
+            if time.monotonic() >= next_report:
+                self._report("[准备] 聊天输入框仍在加载，继续等待；可随时取消。")
+                next_report = time.monotonic() + 15
+            if clicked < 6 and time.monotonic() >= next_attempt:
+                opened = False
+                for selector in _SIDEBAR_CHAT_SELECTORS:
+                    if opened or time.monotonic() >= deadline or self._stop_requested(stop_check):
+                        break
+                    try:
+                        items = self._page.locator(selector)
+                        for index in range(min(items.count(), 10)):
+                            identity = (selector, index)
+                            if identity in attempted:
+                                continue
+                            item = items.nth(index)
+                            if not item.is_visible():
+                                continue
+                            attempted.add(identity)
+                            item.click(timeout=max(1, min(1000, int((deadline-time.monotonic())*1000))))
+                            clicked += 1
+                            # Let the selected conversation finish loading before choosing another.
+                            next_attempt = time.monotonic() + 15
+                            opened = True
+                            break
+                    except Exception:
                         continue
-                    clicked += 1
-                    timeout = max(1, min(700, int((deadline - time.monotonic()) * 1000)))
-                    item.click(timeout=timeout)
-                    editor_deadline = min(deadline, time.monotonic() + 0.8)
-                    while time.monotonic() < editor_deadline:
-                        if self._stop_requested(stop_check):
-                            return False
-                        if self._writable_editor_visible():
-                            return True
-                        self._page.wait_for_timeout(max(1, min(100, int((editor_deadline - time.monotonic()) * 1000))))
-                except Exception:
-                    continue
-        return self._writable_editor_visible()
+            try:
+                self._page.wait_for_timeout(max(1, min(250, int((deadline-time.monotonic())*1000))))
+            except Exception:
+                return False
+        return False
 
     def _wait_for_messenger_ready(
-        self, timeout_ms: int = 45000, stop_check: StopCheck = None
+        self, timeout_ms: int = config.MESSENGER_READY_TIMEOUT, stop_check: StopCheck = None
     ) -> bool:
         """Wait for real conversation rows or an editor, not a route or avatar."""
         if not self._page:
             return False
         deadline = time.monotonic() + timeout_ms / 1000
         selectors = ('[contenteditable="true"]', *_SIDEBAR_CHAT_SELECTORS[:-1])
+        next_report = time.monotonic() + 15
         while time.monotonic() < deadline:
             if self._stop_requested(stop_check):
                 return False
+            if time.monotonic() >= next_report:
+                self._report("[准备] 飞书会话列表仍在加载，继续等待；可随时取消。")
+                next_report = time.monotonic() + 15
             for selector in selectors:
                 try:
                     if self._page.locator(selector).first.is_visible():
@@ -387,33 +400,64 @@ class FeishuUploader:
                 return False
         return False
 
-    def _open_emoji_panel(self, timeout_ms: int = 10000, stop_check: StopCheck = None) -> bool:
-        """Open the personal sticker panel within one total deadline."""
+    def _open_emoji_panel(
+        self, timeout_ms: int = config.STICKER_PANEL_TIMEOUT, stop_check: StopCheck = None
+    ) -> bool:
+        """Wait for the actual add entry, preserving an already open popup."""
+        if not self._page:
+            return False
         deadline = time.monotonic() + timeout_ms / 1000
-        for selector in ('[contenteditable="true"]', '[role="textbox"]', '[class*="input-editor"]'):
-            if time.monotonic() >= deadline or self._stop_requested(stop_check):
+        next_report = time.monotonic() + 15
+        next_open_attempt = 0.0
+        next_tab_attempt = 0.0
+        editor_focused = False
+        while time.monotonic() < deadline:
+            if self._stop_requested(stop_check):
                 return False
-            try:
-                editor = self._page.locator(selector).first
-                if editor.is_visible():
-                    editor.click(timeout=max(1, min(500, int((deadline-time.monotonic())*1000))))
-                    break
-            except Exception:
+            if self._has_personal_sticker_add_entry():
+                return True
+            popup_open = self._is_emoji_popup_visible()
+            personal_open = self._is_sticker_panel_visible()
+            now = time.monotonic()
+            if now >= next_report:
+                self._report("[准备] 正在等待个人表情添加入口加载，尚未提交图片；可随时取消。")
+                next_report = now + 15
+            if personal_open:
+                # The panel shell can appear before its contents. Do not close it.
                 pass
-        if self._is_sticker_panel_visible():
-            return True
-        for selector in _EMOJI_BTN_SELECTORS:
-            if time.monotonic() >= deadline or self._stop_requested(stop_check):
-                return False
+            elif popup_open:
+                if now >= next_tab_attempt:
+                    self._switch_personal_sticker_tab(deadline, stop_check)
+                    next_tab_attempt = time.monotonic() + 10
+            elif now >= next_open_attempt:
+                # Only focus/click the toolbar while no emoji popup is visible.
+                if not editor_focused:
+                    try:
+                        editor = self._page.locator('[contenteditable="true"]').first
+                        if editor.is_visible():
+                            editor.click(timeout=max(1, min(500, int((deadline-time.monotonic())*1000))))
+                            editor_focused = True
+                    except Exception:
+                        pass
+                clicked_opener = False
+                for selector in _EMOJI_BTN_SELECTORS:
+                    if time.monotonic() >= deadline or self._stop_requested(stop_check):
+                        return False
+                    try:
+                        button = self._page.locator(selector).first
+                        if not button.is_visible():
+                            continue
+                        button.click(timeout=max(1, min(1000, int((deadline-time.monotonic())*1000))))
+                        clicked_opener = True
+                        break
+                    except Exception:
+                        continue
+                # Several selectors may identify the same toggle. Never click them in a burst.
+                next_open_attempt = time.monotonic() + (15 if clicked_opener else 0.5)
             try:
-                button = self._page.locator(selector).first
-                if button.is_visible():
-                    button.click(timeout=max(1, min(700, int((deadline-time.monotonic())*1000))))
-                    self._page.wait_for_timeout(max(1, min(200, int((deadline-time.monotonic())*1000))))
-                    if self._switch_personal_sticker_tab(deadline, stop_check):
-                        return True
+                self._page.wait_for_timeout(max(1, min(250, int((deadline-time.monotonic())*1000))))
             except Exception:
-                continue
+                return False
         return False
 
     def _is_sticker_panel_visible(self) -> bool:

@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from ..state import write_private
+from . import config
 
 
 def upload(uploader, files, stop_check=None, batch_size=10, ledger_path=None):
@@ -66,15 +67,15 @@ def upload(uploader, files, stop_check=None, batch_size=10, ledger_path=None):
 
     if not jobs:
         return result()
-    uploader._report("[准备] 正在等待飞书会话列表加载，尚未提交任何图片…")
-    if not uploader._wait_for_messenger_ready(timeout_ms=45000, stop_check=stop_check):
+    uploader._report("[准备] 正在等待飞书会话列表加载（最多 3 分钟），尚未提交任何图片…")
+    if not uploader._wait_for_messenger_ready(timeout_ms=config.MESSENGER_READY_TIMEOUT, stop_check=stop_check):
         if stopped():
             return result({"code": "CANCELLED", "message": "已取消等待飞书页面，尚未提交图片。"})
         return block("MESSENGER_LOADING_TIMEOUT",
-                     "飞书已登录，但会话列表或聊天编辑器在 45 秒内仍未加载。请在浏览器中确认页面已正常显示后继续。",
+                     "飞书已登录，但会话列表或聊天编辑器在 3 分钟内仍未加载。请在浏览器中确认页面已正常显示后继续。",
                      "messenger_loading_timeout")
-    uploader._report("[准备] 正在查找可使用表情面板的会话，不会发送聊天消息…")
-    if not uploader._try_open_first_chat(timeout_ms=12000, stop_check=stop_check):
+    uploader._report("[准备] 正在等待聊天输入框加载（最多 90 秒），不会发送聊天消息…")
+    if not uploader._try_open_first_chat(timeout_ms=config.WRITABLE_CHAT_TIMEOUT, stop_check=stop_check):
         if stopped():
             return result({"code": "CANCELLED", "message": "已取消查找可用会话，尚未提交图片。"})
         return block("NO_WRITABLE_CONVERSATION",
@@ -82,12 +83,16 @@ def upload(uploader, files, stop_check=None, batch_size=10, ledger_path=None):
                      "no_writable_conversation")
     for offset in range(0, len(jobs), batch_size):
         if stopped():
-            break
+            return result({"code": "CANCELLED", "message": "已取消导入，未提交文件保留为待继续。"})
         batch = jobs[offset : offset + batch_size]
-        if not uploader._open_emoji_panel(timeout_ms=10000, stop_check=stop_check) or not uploader._has_personal_sticker_add_entry():
+        if not uploader._open_emoji_panel(timeout_ms=config.STICKER_PANEL_TIMEOUT, stop_check=stop_check) or not uploader._has_personal_sticker_add_entry():
+            if stopped():
+                return result({"code": "CANCELLED", "message": "已取消等待个人表情面板，尚未提交图片。"})
             return block("STICKER_PANEL_UNAVAILABLE",
-                         "聊天编辑器已就绪，但无法打开个人表情添加入口。请在浏览器中展开个人表情面板后继续。",
+                         "聊天编辑器已就绪，但等待 3 分钟后仍未找到个人表情添加入口。请在浏览器中展开个人表情面板后继续。",
                          "import_panel_unavailable")
+        if stopped():
+            return result({"code": "CANCELLED", "message": "已取消导入，尚未提交本批图片。"})
         before = set(uploader._capture_custom_sticker_signature(limit=10000))
         try:
             with uploader._page.expect_file_chooser(timeout=5000) as event:
@@ -95,6 +100,8 @@ def upload(uploader, files, stop_check=None, batch_size=10, ledger_path=None):
             chooser = event.value
             if len(batch) > 1 and not chooser.is_multiple():
                 raise RuntimeError("当前上传入口仅支持单文件，请使用单文件批次")
+            if stopped():
+                return result({"code": "CANCELLED", "message": "已取消导入，尚未提交本批图片。"})
             for path, digest in batch:
                 state[digest] = {"file": Path(path).name, "status": "pending"}
             save()

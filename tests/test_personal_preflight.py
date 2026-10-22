@@ -130,7 +130,7 @@ class PersonalPreflightTests(unittest.TestCase):
         uploader._wait_for_messenger_ready.return_value = False
         result = upload(uploader, self.files, ledger_path=self.ledger)
         self.assert_unsubmitted(result, "MESSENGER_LOADING_TIMEOUT")
-        uploader._wait_for_messenger_ready.assert_called_once_with(timeout_ms=45000, stop_check=None)
+        uploader._wait_for_messenger_ready.assert_called_once_with(timeout_ms=180000, stop_check=None)
         uploader._try_open_first_chat.assert_not_called()
         uploader._page.expect_file_chooser.assert_not_called()
 
