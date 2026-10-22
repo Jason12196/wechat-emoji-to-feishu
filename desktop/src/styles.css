@@ -1787,3 +1787,7 @@ h3 {
   margin: 0 auto 25px;
   text-align: left;
 }
+
+.main-content.source-content {
+  padding-top: clamp(55px, 8vh, 90px);
+}

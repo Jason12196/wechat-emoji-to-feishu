@@ -23,6 +23,7 @@ test.beforeEach(async () => {
       WECHAT_EMOJI_CLI: cli,
       WECHAT_EMOJI_HOME: path.join(folder, "state"),
       TEST_IMAGE: image,
+      TEST_ACCOUNTS_DELAY: "700",
       TEST_CALLS: path.join(folder, "calls.jsonl"),
     },
   });
@@ -39,10 +40,7 @@ test.afterEach(async () => {
 });
 test("Real Electron IPC: source, local assets, offline plan, login confirmation and import", async () => {
   const page = await app.firstWindow();
-  await expect(page.getByLabel("微信账号")).toHaveValue("wxid_fixture");
-  await page
-    .getByRole("button", { name: "从微信收藏导出", exact: true })
-    .click();
+  // A single detected account advances without a second source-card click.
   await expect(
     page.getByRole("heading", { name: "每一张，都很有你。" }),
   ).toBeVisible();
@@ -80,6 +78,25 @@ test("Real Electron IPC: source, local assets, offline plan, login confirmation 
     calls.findIndex((args) => args[1] === "login"),
   );
   expect(calls.filter((args) => args[1] === "import")).toHaveLength(1);
+});
+test("Canceling automatic export preparation stays on the source page", async () => {
+  await app.evaluate(({ dialog }) => {
+    globalThis.pickerCalls = 0;
+    dialog.showOpenDialog = async () => {
+      globalThis.pickerCalls += 1;
+      return { canceled: true, filePaths: [] };
+    };
+  });
+  const page = await app.firstWindow();
+  await expect(page.getByLabel("微信账号")).toHaveValue("wxid_fixture");
+  await expect.poll(() => app.evaluate(() => globalThis.pickerCalls)).toBe(1);
+  await expect(page.locator(".bottom-bar")).toHaveCount(0);
+  await page.waitForTimeout(1000);
+  expect(await app.evaluate(() => globalThis.pickerCalls)).toBe(1);
+  await page
+    .getByRole("button", { name: "从微信收藏导出", exact: true })
+    .click();
+  await expect.poll(() => app.evaluate(() => globalThis.pickerCalls)).toBe(2);
 });
 test("Real Electron: missing CLI exposes actionable diagnostics", async () => {
   await app.close();

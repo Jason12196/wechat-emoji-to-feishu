@@ -92,6 +92,7 @@ export default function App() {
   const [filter, setFilter] = useState("all");
   const [preview, setPreview] = useState(null);
   const heading = useRef(null);
+  const automaticPreparation = useRef(false);
   const busy = Boolean(m.operation);
   const visible = stickers.filter(
     (item) =>
@@ -122,6 +123,30 @@ export default function App() {
       m.startExport();
     else open("wechat-quit");
   }
+  useEffect(() => {
+    if (
+      m.real &&
+      !m.initializing &&
+      m.accounts.length === 1 &&
+      m.wxid &&
+      m.step === 0 &&
+      !busy &&
+      !m.error &&
+      !automaticPreparation.current
+    ) {
+      // Consume before opening the picker: cancellation must not reopen it.
+      automaticPreparation.current = true;
+      void begin("wechat");
+    }
+  }, [
+    m.real,
+    m.initializing,
+    m.accounts?.length,
+    m.wxid,
+    m.step,
+    busy,
+    m.error,
+  ]);
   function dismissLogin() {
     if (m.real && m.operation === "key") m.cancel();
     close();
@@ -222,7 +247,7 @@ export default function App() {
           )}
         </header>
         <main
-          className={`main-content ${m.step === 1 ? "library-content" : ""}`}
+          className={`main-content ${m.step === 0 ? "source-content" : ""} ${m.step === 1 ? "library-content" : ""}`}
         >
           <section className="page-enter" key={m.step}>
             {m.step === 0 && (
@@ -735,61 +760,68 @@ export default function App() {
             )}
           </section>
         </main>
-        <footer className="bottom-bar">
-          <div className="bottom-caption">
-            {m.step === 1 ? (
-              <>
-                <strong>{m.selected.size}</strong> 张已选择
-                <span className="bottom-caption-extra">原图与动图均已保留</span>
-              </>
-            ) : (
-              <>
-                <span className="demo-dot" />
-                {m.real
-                  ? "本机处理 · 仅导入个人自定义表情"
-                  : "演示数据，不会操作真实账号"}
-              </>
-            )}
-          </div>
-          <div className="bottom-actions">
-            {m.step === 1 && (
-              <Button onClick={() => m.setStep(2)} disabled={!m.selected.size}>
-                准备导入
-                <ArrowRight size={16} />
-              </Button>
-            )}
-            {m.step === 2 && !busy && (
-              <>
-                <button className="text-button" onClick={() => m.setStep(1)}>
-                  <ChevronLeft size={15} />
-                  调整选择
-                </button>
+        {(m.step === 1 || m.step === 2) && (
+          <footer className="bottom-bar">
+            <div className="bottom-caption">
+              {m.step === 1 ? (
+                <>
+                  <strong>{m.selected.size}</strong> 张已选择
+                  <span className="bottom-caption-extra">
+                    原图与动图均已保留
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="demo-dot" />
+                  {m.real
+                    ? "本机处理 · 仅导入个人自定义表情"
+                    : "演示数据，不会操作真实账号"}
+                </>
+              )}
+            </div>
+            <div className="bottom-actions">
+              {m.step === 1 && (
                 <Button
-                  onClick={
-                    m.real && m.recoveryJob
-                      ? () => m.resume(m.recoveryJob)
-                      : m.real && !m.plan
-                        ? m.preparePlan
-                        : m.startImport
-                  }
-                  disabled={
-                    !m.fits ||
-                    (m.real
-                      ? Boolean(m.plan || m.recoveryJob) && !m.loggedIn
-                      : !m.loggedIn)
-                  }
+                  onClick={() => m.setStep(2)}
+                  disabled={!m.selected.size}
                 >
-                  {m.real && m.recoveryJob
-                    ? "检查并恢复未提交项目"
-                    : m.real && !m.plan
-                      ? "检查导入计划"
-                      : `开始导入 ${m.selected.size} 张`}
+                  准备导入
                   <ArrowRight size={16} />
                 </Button>
-              </>
-            )}
-          </div>
-        </footer>
+              )}
+              {m.step === 2 && !busy && (
+                <>
+                  <button className="text-button" onClick={() => m.setStep(1)}>
+                    <ChevronLeft size={15} />
+                    调整选择
+                  </button>
+                  <Button
+                    onClick={
+                      m.real && m.recoveryJob
+                        ? () => m.resume(m.recoveryJob)
+                        : m.real && !m.plan
+                          ? m.preparePlan
+                          : m.startImport
+                    }
+                    disabled={
+                      !m.fits ||
+                      (m.real
+                        ? Boolean(m.plan || m.recoveryJob) && !m.loggedIn
+                        : !m.loggedIn)
+                    }
+                  >
+                    {m.real && m.recoveryJob
+                      ? "检查并恢复未提交项目"
+                      : m.real && !m.plan
+                        ? "检查导入计划"
+                        : `开始导入 ${m.selected.size} 张`}
+                    <ArrowRight size={16} />
+                  </Button>
+                </>
+              )}
+            </div>
+          </footer>
+        )}
       </div>
 
       {dialog === "real-error" && m.error && (

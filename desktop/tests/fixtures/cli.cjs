@@ -7,6 +7,13 @@ const id = randomUUID();
 const argv = process.argv.slice(2);
 const args = argv.slice(argv.indexOf("--home") + 2);
 const mode = process.env.TEST_CLI_MODE;
+if (args[0] === "accounts" && process.env.TEST_ACCOUNTS_DELAY)
+  Atomics.wait(
+    new Int32Array(new SharedArrayBuffer(4)),
+    0,
+    0,
+    Number(process.env.TEST_ACCOUNTS_DELAY),
+  );
 if (process.env.TEST_CALLS)
   fs.appendFileSync(process.env.TEST_CALLS, JSON.stringify(args) + "\n");
 function emit(type, extra = {}) {
