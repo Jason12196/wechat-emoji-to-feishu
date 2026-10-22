@@ -113,6 +113,58 @@ test("Partial results retain a diagnostic instead of claiming full success", asy
   assert.equal(result.data.diagnostic.code, "PARTIAL_RESULT");
   assert.ok(fs.existsSync(result.data.diagnostic.diagnostic));
 });
+for (const code of [
+  "MESSENGER_LOADING_TIMEOUT",
+  "NO_WRITABLE_CONVERSATION",
+  "STICKER_PANEL_UNAVAILABLE",
+])
+  test(`A blocked partial result preserves its failure reason and unsubmitted count: ${code}`, async (t) => {
+    const runner = setup(t);
+    const blocked = {
+      code,
+      message: "入口尚未就绪，本批未提交 https://resource.invalid/private",
+    };
+    const resultData = {
+      success: 0,
+      submitted: 0,
+      unknown: 0,
+      remaining: 2,
+      blocked,
+    };
+    const temporaryCli = path.join(runner.home, "blocked-cli.cjs");
+    fs.writeFileSync(
+      temporaryCli,
+      `#!/usr/bin/env node
+const { randomUUID } = require("node:crypto");
+const task_id = randomUUID();
+const emit = (type, payload = {}) => console.log(JSON.stringify({ protocol_version: 1, task_id, type, time: new Date().toISOString(), ...payload }));
+emit("started");
+emit("result", { status: "partial", result: ${JSON.stringify(resultData)} });
+process.exitCode = 3;
+`,
+      { mode: 0o700 },
+    );
+    runner.cli = temporaryCli;
+    const result = await runner.run(["feishu", "import"], "导入个人表情");
+    assert.equal(result.status, "partial");
+    assert.equal(result.data.diagnostic.code, code);
+    assert.equal(result.data.diagnostic.stage, "导入个人表情");
+    assert.equal(result.data.diagnostic.taskId, result.taskId);
+    assert.match(result.data.diagnostic.message, /飞书|输入框|个人表情/);
+    assert.match(result.data.diagnostic.recovery, /本批尚未提交/);
+    assert.ok(!result.data.diagnostic.detail.includes("resource.invalid"));
+    assert.equal(result.data.success, 0);
+    assert.equal(result.data.submitted, 0);
+    assert.equal(result.data.unknown, 0);
+    assert.equal(result.data.remaining, 2);
+    assert.deepEqual(result.data.blocked, blocked);
+    const diagnostic = JSON.parse(
+      fs.readFileSync(result.data.diagnostic.diagnostic, "utf8"),
+    );
+    assert.equal(diagnostic.code, code);
+    assert.equal(diagnostic.exitCode, 3);
+    assert.ok(!JSON.stringify(diagnostic).includes("resource.invalid"));
+  });
 test("A modified selection snapshot cannot be uploaded", async (t) => {
   const runner = setup(t);
   const service = new MigrationService({

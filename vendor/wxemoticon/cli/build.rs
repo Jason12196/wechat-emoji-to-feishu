@@ -46,6 +46,8 @@ fn main() {
             "-dynamiclib",
             "-O2",
             "-fvisibility=hidden",
+            "-install_name",
+            "@rpath/wechat_key_dumper.dylib",
             "-mmacosx-version-min=11.0",
             "-arch",
             &arch,

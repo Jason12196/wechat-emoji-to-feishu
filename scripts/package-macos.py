@@ -5,8 +5,9 @@ import platform
 import shutil
 import subprocess
 import sys
-import tarfile
 from pathlib import Path
+
+from package_privacy import build_archive
 
 root = Path(__file__).resolve().parents[1]
 if sys.platform != "darwin":
@@ -23,7 +24,10 @@ subprocess.run([
 folder = root / "dist/wechat-emoji"
 for name in ("LICENSE", "THIRD_PARTY.md", "README.md"):
     shutil.copy2(root / name, folder / name)
-shutil.copytree(root / "docs", folder / "docs", dirs_exist_ok=True)
+documentation = folder / "docs"
+documentation.mkdir(exist_ok=True)
+for name in ("installation.md", "protocol.md"):
+    shutil.copy2(root / "docs" / name, documentation / name)
 shutil.copy2(root / "src/wechat_emoji_cli/engines/LICENSE.wechatemoji", folder)
 licenses = folder / "dependency-licenses"
 for package in ("pillow", "pycryptodome", "playwright", "greenlet", "pyee", "typing_extensions", "pyinstaller"):
@@ -36,6 +40,6 @@ for package in ("pillow", "pycryptodome", "playwright", "greenlet", "pyee", "typ
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, target)
 archive = root / f"dist/wechat-emoji-macos-{platform.machine()}.tar.gz"
-with tarfile.open(archive, "w:gz") as output:
-    output.add(folder, arcname="wechat-emoji")
+audit = build_archive(folder, archive, private_prefixes=[Path.home(), root])
+print(f"Package privacy check passed: {audit['files']} files and {audit['embedded_entries']} embedded entries.")
 print(archive)

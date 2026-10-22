@@ -66,8 +66,8 @@ _ADD_BTN_SELECTORS = (
     ".add-sticker-btn",
     '[class*="add-sticker-btn"]',
     ".customized-sticker-item.add-sticker-btn",
-    '[class*="add-btn"]',
-    'button:has-text("+")',
+    '.emoji [class*="add-btn"]',
+    '.customized-sticker-panel button:has-text("+")',
 )
 
 # ── 上传后的确认按钮 ──
@@ -292,14 +292,14 @@ class FeishuUploader:
                     '[class*="im-left"]',
                     '[class*="conversation"]',
                     '[contenteditable="true"]',
-                    '[role="main"]',
                 ):
                     try:
-                        if self._page.locator(sel).count() > 0:
+                        if self._page.locator(sel).first.is_visible():
                             return True
                     except Exception:
                         pass
-                return True
+                # A messenger route alone can still be a blank loading shell.
+                return False
         except Exception:
             pass
         return False
@@ -312,69 +312,105 @@ class FeishuUploader:
 
         return upload(self, emoji_files, stop_check)
 
-    def _try_open_first_chat(self):
-        """Keep a writable conversation, or find one without typing/sending messages."""
-        editor = self._page.locator('[contenteditable="true"]').first
-        if editor.is_visible():
-            return
+    def _writable_editor_visible(self) -> bool:
+        if not self._page:
+            return False
+        try:
+            editors = self._page.locator('[contenteditable="true"]')
+            for index in range(min(editors.count(), 8)):
+                editor = editors.nth(index)
+                if editor.is_visible() and editor.is_editable(timeout=150):
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def _try_open_first_chat(
+        self, timeout_ms: int = 12000, stop_check: StopCheck = None
+    ) -> bool:
+        """Find a writable editor with a total deadline; never type or send."""
+        if not self._page:
+            return False
+        deadline = time.monotonic() + timeout_ms / 1000
+        if self._writable_editor_visible():
+            return True
+        clicked = 0
         for selector in _SIDEBAR_CHAT_SELECTORS:
-            items = self._page.locator(selector)
-            for index in range(min(items.count(), 20)):
+            if time.monotonic() >= deadline or self._stop_requested(stop_check):
+                return False
+            try:
+                items = self._page.locator(selector)
+                count = min(items.count(), 10)
+            except Exception:
+                continue
+            for index in range(count):
+                if time.monotonic() >= deadline or clicked >= 10 or self._stop_requested(stop_check):
+                    return False
                 try:
                     item = items.nth(index)
                     if not item.is_visible():
                         continue
-                    item.click()
-                    editor.wait_for(state="visible", timeout=1800)
-                    return
+                    clicked += 1
+                    timeout = max(1, min(700, int((deadline - time.monotonic()) * 1000)))
+                    item.click(timeout=timeout)
+                    editor_deadline = min(deadline, time.monotonic() + 0.8)
+                    while time.monotonic() < editor_deadline:
+                        if self._stop_requested(stop_check):
+                            return False
+                        if self._writable_editor_visible():
+                            return True
+                        self._page.wait_for_timeout(max(1, min(100, int((editor_deadline - time.monotonic()) * 1000))))
                 except Exception:
                     continue
+        return self._writable_editor_visible()
 
     def _wait_for_messenger_ready(
-        self, timeout_ms: int = 12000, stop_check: StopCheck = None
+        self, timeout_ms: int = 45000, stop_check: StopCheck = None
     ) -> bool:
+        """Wait for real conversation rows or an editor, not a route or avatar."""
         if not self._page:
             return False
-        deadline = time.time() + timeout_ms / 1000
-        while time.time() < deadline:
+        deadline = time.monotonic() + timeout_ms / 1000
+        selectors = ('[contenteditable="true"]', *_SIDEBAR_CHAT_SELECTORS[:-1])
+        while time.monotonic() < deadline:
             if self._stop_requested(stop_check):
                 return False
-            for sel in (
-                '[contenteditable="true"]',
-                ".lark__editor--toolbar",
-            ):
+            for selector in selectors:
                 try:
-                    if self._page.locator(sel).first.is_visible():
+                    if self._page.locator(selector).first.is_visible():
                         return True
                 except Exception:
                     pass
-            time.sleep(0.4)
+            try:
+                self._page.wait_for_timeout(max(1, min(200, int((deadline - time.monotonic()) * 1000))))
+            except Exception:
+                return False
         return False
 
-    def _open_emoji_panel(self) -> bool:
-        """点击表情按钮，并切换到“爱心”自定义贴纸面板。"""
-        # 先点击输入框以确保焦点
-        for sel in ('[contenteditable="true"]', '[role="textbox"]', '[class*="input-editor"]'):
+    def _open_emoji_panel(self, timeout_ms: int = 10000, stop_check: StopCheck = None) -> bool:
+        """Open the personal sticker panel within one total deadline."""
+        deadline = time.monotonic() + timeout_ms / 1000
+        for selector in ('[contenteditable="true"]', '[role="textbox"]', '[class*="input-editor"]'):
+            if time.monotonic() >= deadline or self._stop_requested(stop_check):
+                return False
             try:
-                loc = self._page.locator(sel).first
-                if loc.is_visible(timeout=800):
-                    loc.click()
-                    time.sleep(0.3)
+                editor = self._page.locator(selector).first
+                if editor.is_visible():
+                    editor.click(timeout=max(1, min(500, int((deadline-time.monotonic())*1000))))
                     break
             except Exception:
                 pass
-
-        # 如果贴纸面板已经打开，直接返回
         if self._is_sticker_panel_visible():
             return True
-
-        for sel in _EMOJI_BTN_SELECTORS:
+        for selector in _EMOJI_BTN_SELECTORS:
+            if time.monotonic() >= deadline or self._stop_requested(stop_check):
+                return False
             try:
-                loc = self._page.locator(sel).first
-                if loc.is_visible(timeout=1200):
-                    loc.click()
-                    time.sleep(0.8)
-                    if self._switch_personal_sticker_tab():
+                button = self._page.locator(selector).first
+                if button.is_visible():
+                    button.click(timeout=max(1, min(700, int((deadline-time.monotonic())*1000))))
+                    self._page.wait_for_timeout(max(1, min(200, int((deadline-time.monotonic())*1000))))
+                    if self._switch_personal_sticker_tab(deadline, stop_check):
                         return True
             except Exception:
                 continue
@@ -403,52 +439,60 @@ class FeishuUploader:
                 pass
         return False
 
-    def _switch_personal_sticker_tab(self) -> bool:
+    def _switch_personal_sticker_tab(self, deadline=None, stop_check: StopCheck = None) -> bool:
+        deadline = deadline if deadline is not None else time.monotonic() + 5
+        if time.monotonic() >= deadline or self._stop_requested(stop_check):
+            return False
         if self._is_sticker_panel_visible():
             return True
         if not self._is_emoji_popup_visible():
             return False
-
-        # The real user path is: emoji popup -> heart tab -> add button.
         try:
             buttons = self._page.locator(".emoji button.ud__button--icon.ud__button--icon-size-md")
             if buttons.count() >= 3:
-                buttons.nth(2).click()
-                time.sleep(0.8)
+                buttons.nth(2).click(timeout=max(1, min(700, int((deadline-time.monotonic())*1000))))
+                self._page.wait_for_timeout(max(1, min(200, int((deadline-time.monotonic())*1000))))
                 if self._is_sticker_panel_visible():
                     return True
         except Exception:
             pass
-
-        self._try_switch_custom_tab()
+        self._try_switch_custom_tab(deadline, stop_check)
         return self._is_sticker_panel_visible()
 
-    def _try_switch_custom_tab(self):
-        for sel in _CUSTOM_TAB_SELECTORS:
+    def _try_switch_custom_tab(self, deadline=None, stop_check: StopCheck = None):
+        deadline = deadline if deadline is not None else time.monotonic() + 5
+        for selector in _CUSTOM_TAB_SELECTORS:
+            if time.monotonic() >= deadline or self._stop_requested(stop_check):
+                return
             try:
-                loc = self._page.locator(sel)
-                if sel.startswith(".emoji button") and loc.count() >= 3:
-                    loc.nth(2).click()
-                    time.sleep(0.5)
-                    return
-                first = loc.first
-                if first.is_visible(timeout=1500):
-                    first.click()
-                    time.sleep(0.5)
+                buttons = self._page.locator(selector)
+                button = buttons.nth(2) if selector.startswith(".emoji button") and buttons.count() >= 3 else buttons.first
+                if button.is_visible():
+                    button.click(timeout=max(1, min(700, int((deadline-time.monotonic())*1000))))
+                    self._page.wait_for_timeout(max(1, min(200, int((deadline-time.monotonic())*1000))))
                     return
             except Exception:
                 continue
+
+    def _has_personal_sticker_add_entry(self) -> bool:
+        for selector in _ADD_BTN_SELECTORS:
+            try:
+                if self._page.locator(selector).first.is_visible():
+                    return True
+            except Exception:
+                pass
+        return False
 
     def _try_click_add_emoji(self):
         for sel in _ADD_BTN_SELECTORS:
             try:
                 loc = self._page.locator(sel).first
-                if loc.is_visible(timeout=1500):
-                    loc.click()
-                    time.sleep(0.5)
-                    return
+                if loc.is_visible():
+                    loc.click(timeout=700)
+                    return True
             except Exception:
                 continue
+        return False
 
     def _try_confirm_upload(self):
         for sel in _CONFIRM_SELECTORS:

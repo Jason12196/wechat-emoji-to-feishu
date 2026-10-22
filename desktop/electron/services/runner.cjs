@@ -203,12 +203,20 @@ class CliRunner {
           return;
         }
         const partial = terminal.status === "partial" || exitCode === 3;
+        const blocked = terminal.result?.blocked;
+        const blockedCode =
+          typeof blocked?.code === "string" &&
+          /^[A-Z][A-Z0-9_]{0,63}$/.test(blocked.code)
+            ? blocked.code
+            : null;
         const partialDiagnostic = partial
           ? this.record(
               failure(
-                "PARTIAL_RESULT",
+                blockedCode || "PARTIAL_RESULT",
                 stage,
-                "部分项目没有确认完成，请查看计数和逐项记录。",
+                blockedCode && typeof blocked.message === "string"
+                  ? blocked.message
+                  : "部分项目没有确认完成，请查看计数和逐项记录。",
                 { taskId: context.taskId },
               ),
               context,
