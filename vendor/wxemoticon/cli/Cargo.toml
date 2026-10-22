@@ -1,0 +1,40 @@
+[package]
+name = "wxemoticon"
+version = "0.3.0"
+edition = "2021"
+license = "MIT"
+description = "微信表情包工具（macOS/Linux/Windows）：抓取 db key / 导出 URL / 导出表情包图片"
+
+[dependencies]
+anyhow = "1"
+aes = "0.8"
+cbc = "0.1"
+clap = { version = "4", features = ["derive"] }
+dialoguer = "0.11"
+hex = "0.4"
+hmac = "0.12"
+indicatif = "0.17"
+pbkdf2 = "0.12"
+plist = "1"
+regex = "1"
+reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "json", "gzip", "brotli", "deflate"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
+time = { version = "0.3", features = ["formatting", "macros", "local-offset"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+url = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Memory",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
+] }
