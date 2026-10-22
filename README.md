@@ -4,6 +4,8 @@
 
 ## 安装（源码开发版）
 
+完整 CLI、精简 CLI、Electron 及 Codex / Claude Code 接入方式见 [安装与分发说明](docs/installation.md)。当前可用的是下述源码版，安装包尚未发布。
+
 需要 Python 3.10+、Rust、macOS SDK / Xcode Command Line Tools。
 
 ```sh
