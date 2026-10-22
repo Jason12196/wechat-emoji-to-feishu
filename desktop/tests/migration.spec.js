@@ -7,10 +7,9 @@ async function exportDemo(page, cached = false) {
     .click();
   if (!cached) {
     await expect(
-      page.getByRole("button", { name: "继续，打开微信副本" }),
-    ).toBeDisabled();
-    await page.getByRole("checkbox", { name: "我已完全退出微信" }).check();
-    await page.getByRole("button", { name: "继续，打开微信副本" }).click();
+      page.getByRole("button", { name: "退出微信并继续" }),
+    ).toBeEnabled();
+    await page.getByRole("button", { name: "退出微信并继续" }).click();
     await expect(
       page.getByRole("button", { name: "开始读取表情" }),
     ).toBeDisabled();
@@ -136,14 +135,13 @@ test("Exit prompt provides a failure path without exporting", async ({
   await page
     .getByRole("button", { name: "从微信收藏导出", exact: true })
     .click();
-  await page.getByRole("checkbox", { name: "我已完全退出微信" }).check();
-  await page.getByRole("button", { name: "继续，打开微信副本" }).click();
+  await page.getByRole("button", { name: "退出微信并继续" }).click();
   await page.getByRole("button", { name: "窗口闪退或打不开？" }).click();
   await expect(
     page.getByRole("dialog", { name: "微信没有准备好" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "重新准备微信" }).click();
   await expect(
-    page.getByRole("button", { name: "继续，打开微信副本" }),
-  ).toBeDisabled();
+    page.getByRole("button", { name: "退出微信并继续" }),
+  ).toBeEnabled();
 });

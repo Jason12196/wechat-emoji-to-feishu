@@ -152,6 +152,9 @@ export default function useRealMigration() {
       return value;
     });
   }
+  async function quitWeChat() {
+    return perform("quit", () => invoke("quitWeChat"));
+  }
   async function startKey() {
     return perform("key", async () => {
       const value = await invoke("key", { wxid });
@@ -329,6 +332,7 @@ export default function useRealMigration() {
     plan,
     prepareExport,
     startKey,
+    quitWeChat,
     startExport,
     openLocal,
     login,

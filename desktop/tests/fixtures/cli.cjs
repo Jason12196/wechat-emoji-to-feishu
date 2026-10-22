@@ -57,7 +57,7 @@ if (args[0] === "accounts")
       {
         wxid: "wxid_fixture",
         nickname: "测试微信",
-        key_cached: true,
+        key_cached: !process.env.TEST_KEY_MISSING,
         running: false,
       },
     ],

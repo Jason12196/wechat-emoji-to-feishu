@@ -9,6 +9,7 @@ const {
   shell,
   clipboard,
 } = require("electron");
+const { quitWeChat } = require("./services/wechat.cjs");
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
@@ -135,7 +136,21 @@ app.whenReady().then(() => {
         ].includes(method)
       )
         data = await service[method](payload || {});
-      else if (method === "cancel") data = { cancelled: runner.cancel() };
+      else if (method === "quitWeChat") {
+        if (runner.active) throw failure("OPERATION_BUSY", "退出微信");
+        const { response } = await dialog.showMessageBox(window, {
+          type: "question",
+          title: "退出微信并继续？",
+          message: "将退出正在运行的微信",
+          detail:
+            "请先完成正在进行的聊天、通话或文件传输。退出成功后会打开微信副本，用于读取表情。",
+          buttons: ["取消", "退出微信并继续"],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true,
+        });
+        data = response === 1 ? await quitWeChat() : { exited: false };
+      } else if (method === "cancel") data = { cancelled: runner.cancel() };
       else if (method === "diagnostic") {
         if (!/^[a-f0-9-]{36}$/.test(payload?.id || ""))
           throw failure("INVALID_REQUEST", "读取诊断");

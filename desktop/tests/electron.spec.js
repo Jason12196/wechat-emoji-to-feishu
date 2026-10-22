@@ -115,3 +115,34 @@ test("Real Electron: missing CLI exposes actionable diagnostics", async () => {
   await expect(page.getByRole("dialog")).toContainText("CLI_NOT_FOUND");
   await expect(page.getByRole("dialog")).toContainText("检测微信账号");
 });
+
+test("Canceling native WeChat quit confirmation never starts key capture", async () => {
+  await app.evaluate(({ dialog }) => {
+    process.env.TEST_KEY_MISSING = "1";
+    globalThis.quitConfirmations = 0;
+    dialog.showMessageBox = async () => {
+      globalThis.quitConfirmations += 1;
+      return { response: 0 };
+    };
+  });
+  const page = await app.firstWindow();
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "退出微信并继续", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "退出微信并继续", exact: true })
+    .click();
+  await expect
+    .poll(() => app.evaluate(() => globalThis.quitConfirmations))
+    .toBe(1);
+  await expect(
+    page.getByRole("button", { name: "退出微信并继续", exact: true }),
+  ).toBeEnabled();
+  const calls = fs
+    .readFileSync(path.join(folder, "calls.jsonl"), "utf8")
+    .trim()
+    .split("\n")
+    .map(JSON.parse);
+  expect(calls.some((args) => args[0] === "key")).toBe(false);
+});

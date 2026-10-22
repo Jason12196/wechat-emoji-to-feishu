@@ -1,6 +1,14 @@
 const { randomUUID } = require("node:crypto");
 
 const messages = {
+  WECHAT_QUIT_FAILED: [
+    "微信没有退出",
+    "微信可能阻止了退出请求。请在微信菜单中手动选择“退出微信”，完成后返回重试；不会强制结束微信。",
+  ],
+  WECHAT_QUIT_TIMEOUT: [
+    "等待微信退出超时",
+    "20 秒内微信仍在运行。请检查通话、文件传输或微信自身的确认窗口；手动退出后返回重试。",
+  ],
   CLI_NOT_FOUND: [
     "找不到本机提取工具",
     "请重新完整安装应用，或检查维护者提供的 CLI 路径。",

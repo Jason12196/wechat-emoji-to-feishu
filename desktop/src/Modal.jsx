@@ -22,7 +22,7 @@ export default function Modal({
     };
   }, []);
   async function dismiss() {
-    if (closing.current) return;
+    if (closing.current || !onClose) return;
     closing.current = true;
     const reduced = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
@@ -65,6 +65,7 @@ export default function Modal({
       <button
         className="icon-button modal-close"
         aria-label="关闭弹窗"
+        disabled={!onClose}
         onClick={dismiss}
       >
         <X size={18} />

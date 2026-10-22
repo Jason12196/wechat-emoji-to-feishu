@@ -851,16 +851,20 @@ export default function App() {
         <Modal
           title="先让微信休息一下"
           description="首次读取表情，需要先获取这台 Mac 的微信密钥。"
-          onClose={close}
+          onClose={busy ? undefined : close}
           footer={
             <Button
-              disabled={!confirmed}
-              onClick={() => {
+              disabled={busy}
+              onClick={async () => {
+                if (m.real) {
+                  const result = await m.quitWeChat();
+                  if (!result?.exited) return;
+                }
                 open("wechat-login");
                 if (m.real) m.startKey();
               }}
             >
-              继续，打开微信副本
+              {busy ? "正在等待微信退出…" : "退出微信并继续"}
               <ArrowRight size={16} />
             </Button>
           }
@@ -868,15 +872,12 @@ export default function App() {
           <div className="modal-app-icon wechat-icon">
             <BrandLogo brand="wechat" />
           </div>
-          <GuideRow number="1" title="完全退出正在运行的微信">
-            在微信菜单中选择“退出微信”，仅关闭窗口还不够。
+          <GuideRow number="1" title="确认后自动退出微信">
+            请先完成聊天、通话或文件传输。退出成功后会自动继续。
           </GuideRow>
           <GuideRow number="2" title="接下来会打开一个微信副本">
             在副本中登录，并打开一次表情面板。不会修改原微信应用。
           </GuideRow>
-          <CheckLine checked={confirmed} onChange={setConfirmed}>
-            我已完全退出微信
-          </CheckLine>
           {!m.real && (
             <p className="modal-note">交互预览：不会关闭或启动真实微信。</p>
           )}

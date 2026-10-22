@@ -4,6 +4,7 @@ const call = (method, payload) =>
 contextBridge.exposeInMainWorld("migration", {
   initialize: () => call("initialize"),
   prepareExport: (payload) => call("prepareExport", payload),
+  quitWeChat: () => call("quitWeChat"),
   key: (payload) => call("key", payload),
   extract: (payload) => call("extract", payload),
   openLocal: () => call("openLocal"),
