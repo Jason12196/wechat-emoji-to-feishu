@@ -1,4 +1,4 @@
-# wechat-emoji-to-feishu
+# 微信表情导入飞书
 
 面向 Mac 的统一 CLI：整合微信表情提取、资源还原、动画处理与飞书导入。后续 Electron 前端只需调用本 CLI。
 
