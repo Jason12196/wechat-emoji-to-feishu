@@ -2,27 +2,96 @@
 
 面向 Mac 的统一 CLI：整合微信表情提取、资源还原、动画处理与飞书个人自定义表情导入。后续 Electron 前端只需调用本 CLI。
 
-## 安装（源码开发版）
+## 安装与版本选择
 
-CLI 分发包、Electron 规划及 Codex / Claude Code 接入方式见 [安装与分发说明](docs/installation.md)。CLI 内置运行依赖，首次使用自动下载 Chromium；安装包尚未作为 Release 发布。
+只安装 CLI 就能导出微信表情、处理图片和导入飞书个人自定义表情，无需 Electron。Electron 图形界面尚未开发。
 
-需要 Python 3.10+、Rust、macOS SDK / Xcode Command Line Tools。
+| Mac 芯片 | 下载文件 |
+| --- | --- |
+| Apple Silicon（M1/M2/M3/M4 等） | `wechat-emoji-macos-arm64.tar.gz` |
+| Intel | `wechat-emoji-macos-x86_64.tar.gz` |
+
+在苹果菜单 → 关于本机中查看芯片。两种包使用相同命令，分别构建，不要混用。目前提供 CI 测试产物，尚未发布正式 Release；签名、公证和干净机器验收仍需完成。Windows/Linux 暂不提供支持。
+
+### 下载 CLI 安装包
+
+仓库目前为私有，需要获得仓库访问权限并登录 GitHub。
+
+1. 打开仓库的 [Actions 页面](https://github.com/Jason12196/wechat-emoji-to-feishu/actions)，选择最新一次成功完成的 **CLI checks**。
+2. 在运行详情底部的 **Artifacts** 下载 `macos-cli-arm64` 或 `macos-cli-x86_64`。产物保留 7 天；若需要的架构尚未构建成功，先等待检查完成。
+3. 解压 GitHub 下载的 ZIP，再解压里面的 `.tar.gz`，得到 `wechat-emoji` 文件夹。保留整个文件夹，不要只拷贝可执行文件。
+4. 在终端进入解压目录，执行：
 
 ```sh
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -e .
-./scripts/build-engine.sh
-wechat-emoji browser install
-wechat-emoji --version
-wechat-emoji --json doctor
+cd /你的解压位置/wechat-emoji
+./wechat-emoji --version
+./wechat-emoji doctor
+# 让当前终端可以直接使用后文的 wechat-emoji 命令
+export PATH="$PWD:$PATH"
 ```
 
-Rust 源码已保留在 vendor/wxemoticon。编译产物放在 runtime/bin，不提交到 Git；也可用 WXEMOTICON_BIN 指定已有的本项目修改版提取 CLI。通用上游 CLI 不包含本项目增加的 --metadata-out 接口。
+包内包含 Python、Python 模块、Rust 提取引擎和 Playwright，无需自行安装 Python、Rust 或 Xcode。微信需要自行安装；飞书使用浏览器登录，无需安装飞书客户端。
+
+`doctor` 检测通过不代表微信密钥或飞书登录已经可用。第一次使用尚无 Chromium 时，`chromium_ready` 和 `ready` 会为 false，按下一节准备浏览器即可。
+
+### 首次下载浏览器
+
+首次飞书登录或导入会自动下载匹配版本的 Chromium，显示下载进度；也可提前执行：
+
+```sh
+wechat-emoji browser install
+```
+
+该命令下载并验证本地浏览器启动，不访问飞书。下载失败会自动重试一次；仍失败时，检查网络后重新执行同一命令。后续复用缓存，升级 CLI 后可能需要下载新的浏览器版本。下载、微信登录和飞书导入均需要网络。
+
+默认缓存：`~/Library/Caches/ms-playwright`。如需更换位置，在运行 CLI 前设置：
+
+```sh
+export WECHAT_EMOJI_BROWSER_CACHE="/你选择的位置/wechat-emoji-browsers"
+wechat-emoji browser install
+```
+
+浏览器缓存与账号登录目录分开，重新下载浏览器不会主动清除登录状态。
+
+### 从源码安装（开发者）
+
+需要 Git、Python 3.10+、Rust、macOS SDK / Xcode Command Line Tools。
+
+```sh
+git clone https://github.com/Jason12196/wechat-emoji-to-feishu.git
+cd wechat-emoji-to-feishu
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -e .
+./scripts/build-engine.sh
+wechat-emoji --version
+wechat-emoji doctor
+# 可选：提前准备浏览器
+wechat-emoji browser install
+```
+
+### 在 Codex / Claude Code 中使用
+
+先按上面任一方式安装 CLI，再在同一台 Mac 的本地 Codex 或 Claude Code 中使用。不需要安装 Electron，也不需要另建 MCP 服务；助手必须能执行本地命令，云端环境不能直接读取这台 Mac 的微信数据。
+
+将以下提示词中的路径替换为实际路径，发送给助手：
+
+```text
+使用 /实际解压目录/wechat-emoji/wechat-emoji。
+先运行 --version 和 --json doctor，其他参数先查 --help。
+仅处理本机微信表情与飞书个人自定义表情。
+导出后先展示导入计划，询问我飞书已有表情数量和本次选择范围。
+实际导入前让我核对接收账号并确认；需要扫码登录时提示我操作窗口。
+不要自动删除既有表情，不要自动重传 pending/unknown 项。
+```
+
+源码安装时，将可执行文件路径换成 `/实际克隆目录/.venv/bin/wechat-emoji`。`--json` 必须放在子命令之前，便于助手读取进度与结果。微信和飞书登录仍由用户完成。目前提供命令接入方式，尚无专用 Skill 或一键安装器。
 
 ## 使用
 
-全局参数（--json、--home、--wechat-root）放在子命令之前。
+微信默认全量导出。飞书可导入整个目录，或用 `--limit N` 选择排序后的前 N 张；若要挑选特定图片，可先复制到单独目录再导入。CLI 目前没有逐张勾选界面。
+
+普通终端使用可省略 `--json`；需要逐行 JSON 输出时再加上。全局参数（--json、--home、--wechat-root）放在子命令之前。
 
 ```sh
 # 只读检测
@@ -73,12 +142,25 @@ wechat-emoji --json tasks show TASK_UUID
 
 历史本机验证：微信 4.1.15 (270135)、Apple Silicon；996 条记录成功导出、全部逐帧解码；个人导入链路已部分验证。受飞书个人表情容量约束，未声称 996 张全部导入成功。
 
-新仓库验证使用隔离状态与合成图片，不继续上传用户的飞书。Intel、Windows、其他微信版本以及独立安装包未做端到端验证。
+新仓库验证使用隔离状态与合成图片，不继续上传用户的飞书。CLI 已在 Apple Silicon 本机验证打包、换目录启动、首次浏览器下载、缓存复用与合成图片处理。CI 对 Apple Silicon 和 Intel 分别检查构建与启动；Intel 真实微信取密钥及飞书导入、其他微信版本尚未完成端到端验证。
 
 ```sh
 python -m unittest discover -s tests -v
 cargo test --locked --release --manifest-path vendor/wxemoticon/cli/Cargo.toml
 ```
+
+## 常见问题
+
+- **提示找不到命令**：在解压目录使用 `./wechat-emoji`，或重新执行上面的 PATH 设置。该设置只对当前终端有效。
+- **微信需要重新登录吗？** 已有密钥有效时通常可复用；获取或刷新密钥时按提示退出原微信，在工具启动的副本中登录并打开一次表情面板。
+- **飞书需要重新登录吗？** 首次在独立 Chromium 窗口登录；登录状态在本机保存，失效后重新登录。`--account` 是本地标签，务必核对窗口中的实际账号。
+- **飞书已有数量怎么填？** 当前需要用户手动提供，不会自动读取。按个人自定义表情上限 1000 预检查；已满时不会继续上传。
+- **导入中断怎么办？** 查看任务记录及 ledger；成功项可跳过，pending/unknown 项需先人工核对，避免重复添加。
+- **Mac 阻止启动怎么办？** 当前是未公证的测试包，可使用源码安装；正式安装包的签名、公证与下载启动体验仍待验收。
+
+## 开发与 CI
+
+每次提交会自动检查 Python 和 Rust，并分别构建两种 Mac 架构的 CLI 测试包。CI 不会登录微信、飞书或上传表情。打包与维护者授权步骤见 [开发与 CI 说明](docs/installation.md)。
 
 ## 来源
 
