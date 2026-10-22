@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,11 +22,12 @@ def write_private(path: Path, value):
 
 class Task:
     def __init__(self, home, command, json_mode=False):
+        self.started = time.time()
         self.id = str(uuid.uuid4())
         self.path = Path(home) / "tasks" / f"{self.id}.json"
         self.stream = sys.stdout
         self.json_mode = json_mode
-        self.record = {"id": self.id, "command": command, "status": "running"}
+        self.record = {"id": self.id, "command": command, "status": "running", "started_at": self.started}
         self.emit("started", command=command)
 
     def emit(self, kind, **data):
@@ -50,7 +52,7 @@ class Task:
         self.emit("progress", current=current, total=total, message=message)
 
     def finish(self, result, status="complete", code=None):
-        self.record.update(status=status, result=result)
+        self.record.update(status=status, result=result, finished_at=time.time())
         if code:
             self.record["code"] = code
         write_private(self.path, self.record)

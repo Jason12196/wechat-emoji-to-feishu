@@ -45,3 +45,22 @@ jobs:
           name: macos-cli-${{ matrix.arch }}
           path: dist/wechat-emoji-macos-*.tar.gz
           retention-days: 7
+
+  desktop:
+    name: Electron integration
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+        working-directory: desktop
+      - run: npm run check && npm run build && npm run test:bridge
+        working-directory: desktop
+      - run: npx playwright install chromium
+        working-directory: desktop
+      - run: npm test -- --workers=2
+        working-directory: desktop

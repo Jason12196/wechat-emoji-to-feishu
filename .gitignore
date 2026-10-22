@@ -21,3 +21,6 @@ __pycache__/
 /data/
 /.state/
 **/emoticon_dbkey*.txt
+/desktop/node_modules/
+/desktop/dist/
+/desktop/test-results/

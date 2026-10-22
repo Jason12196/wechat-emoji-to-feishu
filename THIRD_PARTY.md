@@ -6,3 +6,5 @@
 Rust modifications: --metadata-out for private resource metadata; Rust 1.85-compatible time dependencies and integer remainder check. Python modifications: packaged imports, macOS extraction adapter, image validation/decryption/recovery, animated-image preparation, conservative personal-upload ledger.
 
 This repository contains no WeChat databases, keys, resource URLs, browser profiles, user images or session recordings.
+
+Desktop interface: WeChat brand mark from Simple Icons (CC0); Feishu brand mark from its official website favicon. See desktop/README.md for source links. Brand marks identify the services used and do not indicate affiliation.

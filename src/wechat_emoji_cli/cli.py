@@ -370,5 +370,8 @@ def main(argv=None):
         task.finish({"message": str(exc)}, "failed", exc.code)
         return exc.exit_code
     except Exception as exc:
-        task.finish({"message": str(exc)}, "failed", "ENGINE_ERROR")
+        from .diagnostics import record_exception, redact
+
+        diagnostic = record_exception(task, exc, args.command, config.DEBUG_DIR)
+        task.finish({"message": redact(exc), "diagnostic": diagnostic}, "failed", "ENGINE_ERROR")
         return 1

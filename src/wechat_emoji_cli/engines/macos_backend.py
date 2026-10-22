@@ -27,10 +27,15 @@ def cli_path() -> str:
 
 
 def accounts() -> list[dict]:
+    from .key_status import cached_key_valid
+
     running = subprocess.run(["pgrep", "-x", "WeChat"], capture_output=True).returncode == 0
     root = data_root()
     return [
-        dict(wxid=p.name, wx_dir=str(p), running=running, pid=0, nickname="", key="")
+        dict(
+            wxid=p.name, wx_dir=str(p), running=running, pid=0, nickname="",
+            key_cached=cached_key_valid(p / "db_storage/emoticon/emoticon.db", p.name),
+        )
         for p in sorted(root.glob("wxid_*"))
         if (p / "db_storage/emoticon/emoticon.db").is_file()
     ]

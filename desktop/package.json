@@ -1,0 +1,28 @@
+{
+  "name": "wechat-emoji-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5196 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5196 --strictPort",
+    "start": "npm run build && electron .",
+    "test": "playwright test",
+    "test:bridge": "node --test tests/unit/*.test.cjs",
+    "check": "prettier --check ."
+  },
+  "dependencies": {
+    "lucide-react": "1.61.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@vitejs/plugin-react": "6.1.2",
+    "electron": "45.0.0",
+    "prettier": "3.9.10",
+    "vite": "8.3.5"
+  }
+}

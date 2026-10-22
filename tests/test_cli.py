@@ -140,6 +140,18 @@ class CliTests(unittest.TestCase):
         self.assertTrue(events[-1]["result"]["fits"])
         self.assertEqual(events[-1]["result"]["selected"], 0)
 
+    def test_exception_has_private_redacted_traceback(self):
+        with patch("wechat_emoji_cli.engines.macos_backend.accounts", side_effect=RuntimeError("authorization: Bearer hidden-value")):
+            code, events, _ = self.call("accounts")
+        self.assertEqual(code, 1)
+        diagnostic = Path(events[-1]["result"]["diagnostic"])
+        self.assertTrue(diagnostic.exists())
+        value = json.loads(diagnostic.read_text())
+        self.assertEqual(value["exception_type"], "RuntimeError")
+        self.assertIn("in dispatch", value["traceback"])
+        self.assertNotIn("hidden-value", diagnostic.read_text())
+        self.assertEqual(diagnostic.stat().st_mode & 0o777, 0o600)
+
     def test_browser_progress_uses_protocol(self):
         def provision(report, verify):
             report("download progress")
