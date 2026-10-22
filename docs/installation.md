@@ -2,6 +2,23 @@
 
 用户安装、浏览器下载、操作步骤、Codex / Claude Code 接入和常见问题统一维护在 [README](../README.md)。
 
+## 源码安装
+
+需要 Git、Python 3.10+、Rust 和 Xcode Command Line Tools。
+
+```sh
+git clone https://github.com/Jason12196/wechat-emoji-to-feishu.git
+cd wechat-emoji-to-feishu
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -e .
+./scripts/build-engine.sh
+wechat-emoji --version
+wechat-emoji doctor
+```
+
+用户使用与助手安装入口见 README 和 INSTALL_FOR_AGENTS.md。
+
 ## 开发者打包
 
 按 README 完成源码安装后执行：
