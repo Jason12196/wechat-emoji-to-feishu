@@ -6,7 +6,7 @@
 
 | 方式 | 包含内容 | 用户需要准备 | 当前状态 |
 | --- | --- | --- | --- |
-| CLI | Python 运行时、Python 模块、Rust 引擎、Playwright；Chromium 首次自动下载 | 微信、飞书账号、网络 | 本机打包验证中 |
+| CLI | Python 运行时、Python 模块、Rust 引擎、Playwright；Chromium 首次自动下载 | 微信、飞书账号、网络 | Apple Silicon 本机打包与启动验证通过 |
 | Electron App | 图形界面与同一套 CLI 核心 | 微信、飞书账号、网络 | 待开发 |
 | Codex / Claude Code | 调用同一套 CLI 的说明 | 本机可执行命令的助手环境 | 接入步骤见下文 |
 
