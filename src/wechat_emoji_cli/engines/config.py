@@ -5,7 +5,11 @@ import sys
 from pathlib import Path
 
 APP_NAME = "wechat-emoji-to-feishu"
-APP_DIR = str(Path(__file__).resolve().parents[3] / "runtime")
+APP_DIR = str(
+    Path(sys._MEIPASS) / "runtime"
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parents[3] / "runtime"
+)
 DATA_DIR = os.environ.get(
     "WECHAT_EMOJI_HOME", str(Path.home() / "Library/Application Support" / APP_NAME)
 )

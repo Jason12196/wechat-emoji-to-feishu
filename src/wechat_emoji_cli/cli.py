@@ -33,6 +33,8 @@ def parser():
     p.add_argument("--wechat-root", help="Override xwechat_files directory")
     sub = p.add_subparsers(dest="command", required=True)
     sub.add_parser("doctor", help="Read-only dependency and runtime diagnostics")
+    browser = sub.add_parser("browser").add_subparsers(dest="action", required=True)
+    browser.add_parser("install", help="Download matching Chromium and verify local launch")
     sub.add_parser("accounts", help="List local WeChat accounts (no decryption)")
     key = sub.add_parser("key", help="Explicitly obtain a key using a signed WeChat copy")
     key.add_argument("--wxid")
@@ -169,8 +171,9 @@ def doctor():
         engine_ready = Path(engine).is_file()
     except RuntimeError:
         engine, engine_ready = None, False
-    browsers = Path(config.PLAYWRIGHT_USER_DIR)
-    chromium = browsers.is_dir() and any(browsers.glob("chromium-*"))
+    from .browser import ready
+
+    chromium = ready() if modules["playwright"] else False
     return {
         "platform": sys.platform,
         "python": sys.version.split()[0],
@@ -187,6 +190,10 @@ def doctor():
 def dispatch(args, task):
     if args.command == "doctor":
         return doctor()
+    if args.command == "browser":
+        from .browser import ensure
+
+        return ensure(report=lambda message: task.progress(0, 0, message), verify=True)
     if args.command == "accounts":
         from .engines.macos_backend import accounts
 

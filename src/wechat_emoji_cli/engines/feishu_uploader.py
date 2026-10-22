@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
@@ -107,74 +106,10 @@ BROWSER_CANDIDATES = (
 )
 
 
-def _candidate_browser_roots() -> list[Path]:
-    roots = [
-        Path(config.PLAYWRIGHT_BUNDLE_DIR),
-        Path(config.PLAYWRIGHT_VENDOR_DIR),
-        Path(config.PLAYWRIGHT_USER_DIR),
-    ]
-    ordered: list[Path] = []
-    seen: set[str] = set()
-    for root in roots:
-        key = str(root).lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        ordered.append(root)
-    return ordered
+def _activate_browser_runtime_env():
+    from ..browser import activate
 
-
-def _has_browser_runtime(root: Path) -> bool:
-    if not root.exists():
-        return False
-    required = ("chromium-*", "chromium_headless_shell-*", "ffmpeg-*")
-    if sys.platform == "win32":
-        required += ("winldd-*",)
-    return all(any(root.glob(pattern)) for pattern in required)
-
-
-def _configured_browser_root() -> Optional[Path]:
-    for root in _candidate_browser_roots():
-        if _has_browser_runtime(root):
-            return root
-    return None
-
-
-def _activate_browser_runtime_env(root: Optional[Path] = None) -> Optional[Path]:
-    chosen = root or _configured_browser_root()
-    if chosen:
-        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(chosen)
-    return chosen
-
-
-def _install_browser_runtime(target_root: Path) -> tuple[bool, str]:
-    if getattr(sys, "frozen", False):
-        return False, "打包模式下无法自动安装 Chromium，请确认已内置运行时。"
-    target_root.mkdir(parents=True, exist_ok=True)
-    env = os.environ.copy()
-    env["PLAYWRIGHT_BROWSERS_PATH"] = str(target_root)
-    commands = [
-        [sys.executable, "-m", "playwright", "install", "chromium"],
-        ["python", "-m", "playwright", "install", "chromium"],
-        ["py", "-3", "-m", "playwright", "install", "chromium"],
-    ]
-    last_error = ""
-    for cmd in commands:
-        try:
-            result = subprocess.run(
-                cmd,
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=1800,
-            )
-        except Exception as exc:
-            last_error = str(exc)
-            continue
-        if result.returncode == 0 and _has_browser_runtime(target_root):
-            return True, f"Chromium runtime is ready at {target_root}"
-        last_error = (result.stderr or result.stdout or "").strip() or f"exit={result.returncode}"
-    return False, last_error or "unknown install error"
+    return activate()
 
 
 def _load_playwright() -> tuple[Any, Any]:
@@ -188,75 +123,6 @@ def _load_playwright() -> tuple[Any, Any]:
             "The packaged desktop app should include it already."
         ) from exc
     return sync_playwright, PlaywrightTimeoutError
-
-
-def check_upload_environment() -> dict:
-    """Check whether Playwright and a Chromium runtime are ready for Feishu upload."""
-    result = {
-        "ok": False,
-        "python_package": False,
-        "browser_runtime": False,
-        "message": "",
-    }
-
-    try:
-        sync_playwright, _ = _load_playwright()
-    except RuntimeError as exc:
-        result["message"] = str(exc)
-        return result
-
-    result["python_package"] = True
-    browser_root = _configured_browser_root()
-    if browser_root:
-        result["browser_root"] = str(browser_root)
-
-    playwright = None
-    browser = None
-    try:
-        playwright = sync_playwright().start()
-        browser = playwright.chromium.launch(headless=True)
-        result["browser_runtime"] = True
-        result["ok"] = True
-        if browser_root:
-            result["message"] = f"Bundled Chromium runtime is ready: {browser_root}"
-        else:
-            result["message"] = "Playwright and Chromium runtime are ready."
-        return result
-    except Exception as exc:
-        target_root = Path(
-            config.PLAYWRIGHT_BUNDLE_DIR
-            if getattr(sys, "frozen", False)
-            else config.PLAYWRIGHT_VENDOR_DIR
-        )
-        ok, install_msg = _install_browser_runtime(target_root)
-        if ok:
-            result["browser_runtime"] = True
-            result["ok"] = True
-            result["browser_root"] = str(target_root)
-            result["message"] = install_msg
-        else:
-            if getattr(sys, "frozen", False):
-                result["message"] = (
-                    "Chromium 运行时未找到，打包应用应已内置 Chromium。"
-                    f"请确认 exe 旁存在 runtime/ms-playwright 文件夹。原始错误: {exc}"
-                )
-            else:
-                result["message"] = (
-                    "Playwright 已安装，但 Chromium 运行时缺失。"
-                    f"请执行：python -m playwright install chromium\n原始错误: {exc}"
-                )
-        return result
-    finally:
-        if browser:
-            try:
-                browser.close()
-            except Exception:
-                pass
-        if playwright:
-            try:
-                playwright.stop()
-            except Exception:
-                pass
 
 
 class FeishuUploader:
@@ -301,6 +167,9 @@ class FeishuUploader:
 
     def start(self):
         """启动浏览器。优先复用本机 Edge/Chrome 登录态。"""
+        from ..browser import ensure
+
+        ensure(report=self._report)
         sync_playwright, timeout_error = _load_playwright()
         self._timeout_error = timeout_error
         self._playwright_driver = sync_playwright().start()

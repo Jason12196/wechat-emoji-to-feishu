@@ -140,6 +140,17 @@ class CliTests(unittest.TestCase):
         self.assertTrue(events[-1]["result"]["fits"])
         self.assertEqual(events[-1]["result"]["selected"], 0)
 
+    def test_browser_progress_uses_protocol(self):
+        def provision(report, verify):
+            report("download progress")
+            return {"ready": True, "launch_verified": verify}
+
+        with patch("wechat_emoji_cli.browser.ensure", side_effect=provision):
+            code, events, _ = self.call("browser", "install")
+        self.assertEqual(code, 0)
+        self.assertTrue(any(event["type"] == "progress" for event in events))
+        self.assertTrue(events[-1]["result"]["launch_verified"])
+
     def test_single_personal_sticker_is_valid(self):
         code, events, _ = self.call(
             "feishu", "plan", self.images, "--account", "test", "--existing-count", "0"
