@@ -21,6 +21,20 @@ SCRIPTS = (
     "dev.mjs", "build-icons.mjs", "build-engine.sh", "cli-entry.py", "package-macos.py",
     "package-source.py", "package-desktop.py", "package_privacy.py",
 )
+DOC_IMAGES = ("source.png", "library.png", "feishu.png", "completed.png")
+DOC_BADGES = (
+    'app-apple-silicon-3370ff.svg',
+    'app-intel-3370ff.svg',
+    'cli-apple-silicon-7957d5.svg',
+    'cli-intel-7957d5.svg',
+    'electron-desktop-47848f.svg',
+    'license-mit-07c160.svg',
+    'macos-silicon---intel-18181b.svg',
+    'python-cli-3776ab.svg',
+    'release-v0.1.0-3370ff.svg',
+    'source-apple-silicon-07c160.svg',
+    'source-intel-07c160.svg',
+)
 SOURCE_TREES = {
     "src/wechat_emoji_cli": {".py", ".wechatemoji"},
     "desktop/src": {".js", ".jsx", ".css", ".svg", ".ico"},
@@ -45,6 +59,8 @@ def main():
     required += [Path("desktop") / name for name in DESKTOP_FILES]
     required += [Path("scripts") / name for name in SCRIPTS]
     required += [Path("docs") / name for name in ("installation.md", "protocol.md")]
+    required += [Path("docs/images") / name for name in DOC_IMAGES]
+    required += [Path("docs/badges") / name for name in DOC_BADGES]
     missing = [str(path) for path in required if not (root / path).is_file()]
     if missing:
         raise SystemExit("Missing source kit inputs: " + ", ".join(missing))
@@ -85,6 +101,7 @@ def main():
             folder, archive, private_prefixes=[Path.home(), root],
             resource_policy=lambda path: path in allowed or path.is_relative_to("dist/wechat-emoji"),
             image_policy=lambda path: path == Path("desktop/assets/icon.png")
+            or path in {Path("docs/images") / name for name in DOC_IMAGES}
             or path.is_relative_to("dist/wechat-emoji/_internal/playwright"),
         )
         print(f"Source kit privacy check passed: {result['files']} files, {result['embedded_entries']} embedded entries.")

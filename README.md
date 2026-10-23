@@ -1,26 +1,36 @@
 <div align="center">
 
-<img src="desktop/assets/icon.png" alt="表情迁移" width="112" height="112">
+<img src="desktop/assets/icon.png" alt="表情迁移 LOGO" width="88" height="88">
 
 # 表情迁移
 
-**把喜欢的微信表情，带到飞书。**
+### 把喜欢的微信表情，带到飞书。
 
-Mac（目前） · Apple Silicon / Intel · 个人自定义表情
+导出收藏 · 挑选表情 · 一次带走
 
-[下载与启动](#下载与启动) &nbsp;·&nbsp; [使用方式](#使用方式) &nbsp;·&nbsp; [交给 AI 助手](#交给-ai-助手) &nbsp;·&nbsp; [常见问题](#常见问题)
+[![Release v0.1.0](docs/badges/release-v0.1.0-3370ff.svg)](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/tag/v0.1.0) &nbsp; ![macOS Apple Silicon / Intel](docs/badges/macos-silicon---intel-18181b.svg) &nbsp; ![Electron 桌面应用](docs/badges/electron-desktop-47848f.svg) &nbsp; ![Python CLI](docs/badges/python-cli-3776ab.svg) &nbsp; [![MIT license](docs/badges/license-mit-07c160.svg)](LICENSE)
+
+<br>
+
+**[立即下载](#下载与启动)** &nbsp; / &nbsp; [界面预览](#界面预览) &nbsp; / &nbsp; [交给 AI 助手](#交给-ai-助手) &nbsp; / &nbsp; [常见问题](#常见问题)
+
+<br>
+
+<a href="docs/images/library.png"><img src="docs/images/library.png" alt="表情挑选界面：彩色表情网格、动图筛选与批量选择" width="960"></a>
+
+<sub>界面使用内置演示数据，不包含真实账号或私人表情。</sub>
 
 </div>
 
 <br>
 
-导出微信收藏，挑选想带走的图片，再添加到飞书个人表情面板。提供 **Electron 桌面应用**和 **CLI**，也可以把仓库链接交给 Codex、Claude Code 等本地助手完成安装。
-
-| 留住原图和动图 | 接着上次继续 | 由你决定导入范围 |
+| 原图与动图，一起留住 | 从上次继续 | 由你决定带走哪些 |
 | :--- | :--- | :--- |
-| 本地处理，保留下载源文件与有效原图 | 已导出不重做，有效密钥直接复用 | 勾选图片、核对账号与容量，再开始 |
+| 本地导出与处理，保留源文件 | 复用有效密钥，补齐未完成的导出 | 先挑选、核对账号与容量，再导入 |
 
-> 当前为测试版，**没有 Apple 开发者签名或公证**。推荐下载含 CLI 的源码包，在本机运行 `pnpm dev` 启动 Electron。Apple Silicon 已完成真实导出和导入验证；Intel 提供对应构建，仍待实机验证。新打包方式尚待干净机器验收。
+**Mac（目前） · Apple Silicon / Intel · 飞书个人自定义表情**
+
+> 当前为早期版本，尚无 Apple Developer ID 签名或公证。推荐使用含 CLI 的源码包，通过 `pnpm dev` 启动 Electron。Apple Silicon 已完成真实迁移验证，Intel 仍待实机迁移验证。
 
 ## 下载与启动
 
@@ -30,13 +40,15 @@ Mac（目前） · Apple Silicon / Intel · 个人自定义表情
 
 “关于本机”显示 **Apple M 系列芯片**选 `arm64`；显示 **Intel 处理器**选 `x86_64`。
 
-| 使用方式 | Apple Silicon | Intel | 适合谁 |
-| :--- | :--- | :--- | :--- |
-| **源码包 + Electron（推荐）** | [Apple Silicon 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-source-macos-arm64.zip) | [Intel 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-source-macos-x86_64.zip) | 希望从源码在本机运行图形界面 |
-| Electron 应用包 | [Apple Silicon 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-desktop-macos-arm64.zip) | [Intel 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-desktop-macos-x86_64.zip) | 想直接打开桌面应用 |
-| CLI | [Apple Silicon 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-macos-arm64.tar.gz) | [Intel 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-macos-x86_64.tar.gz) | 终端用户、脚本和本地 AI 助手 |
+| 选择安装方式 | Apple Silicon · M 系列 | Intel | 运行需要 |
+| :--- | :---: | :---: | :--- |
+| **源码启动包 · 推荐** | [![SOURCE Apple Silicon](docs/badges/source-apple-silicon-07c160.svg)](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-source-macos-arm64.zip) | [![SOURCE Intel](docs/badges/source-intel-07c160.svg)](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-source-macos-x86_64.zip) | Node.js 22.12+、pnpm 10 |
+| **Electron 桌面应用** | [![APP Apple Silicon](docs/badges/app-apple-silicon-3370ff.svg)](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-desktop-macos-arm64.zip) | [![APP Intel](docs/badges/app-intel-3370ff.svg)](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-desktop-macos-x86_64.zip) | 解压后打开 `.app` |
+| **CLI 命令行工具** | [![CLI Apple Silicon](docs/badges/cli-apple-silicon-7957d5.svg)](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-macos-arm64.tar.gz) | [![CLI Intel](docs/badges/cli-intel-7957d5.svg)](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-macos-x86_64.tar.gz) | 终端运行 |
 
-### 方式一：源码包，`pnpm dev` 启动 Electron
+<sub>点击带 LOGO 的按钮直接下载，无需登录。安装包附带 CLI 和运行依赖；浏览器在首次登录飞书时下载。</sub>
+
+### 01 · 源码启动包（推荐）
 
 安装 [Node.js 22.12 或更新版本](https://nodejs.org/en/download)，并准备 pnpm 10；已有 pnpm 10 可跳过这一步：
 
@@ -51,7 +63,7 @@ cd /你的解压位置/wechat-emoji-to-feishu
 pnpm dev
 ```
 
-**就这一个启动命令。** 首次会自动安装前端依赖、下载 Electron、构建界面并打开应用，之后可以再次执行相同命令启动。安装过程需要联网，终端会显示进度。保留该文件夹以及启动它的终端。
+首次启动会安装前端依赖、下载 Electron 并打开应用；以后仍使用 `pnpm dev`。安装时需要联网，保留源码文件夹和启动终端。
 
 这个源码包已经带好对应架构的 CLI，**不用安装 Python、Rust 或 Xcode**。飞书所需的 Chromium 会在首次登录时自动下载，后续复用本机缓存。
 
@@ -70,13 +82,13 @@ WECHAT_EMOJI_CLI="/实际位置/wechat-emoji/wechat-emoji" pnpm dev
 
 </details>
 
-### 方式二：直接打开 Electron 应用包
+### 02 · Electron 桌面应用
 
 在上表下载对应芯片的 Electron 应用包，解压下载的 `wechat-emoji-desktop-macos-*.zip`，得到 **表情迁移.app**，可以移入“应用程序”后打开。应用自带 CLI，首次登录飞书时下载浏览器。
 
 这个包未签名、未公证，macOS 可能阻止启动。确认来源后可查看“系统设置 → 隐私与安全性”中的允许打开选项；如果仍无法打开，可以改用上面的源码包。**不需要关闭系统整体安全保护。**
 
-### 方式三：仅使用 CLI
+### 03 · CLI 命令行工具
 
 在上表下载对应芯片的 CLI，解压下载的 `wechat-emoji-macos-*.tar.gz`，保留整个 `wechat-emoji` 文件夹。打开终端：
 
@@ -90,6 +102,26 @@ export PATH="$PWD:$PATH"
 最后一行让当前终端能直接运行后文的 `wechat-emoji` 命令；新终端需要重新设置，或改用可执行文件完整路径。不要只复制可执行文件，它需要旁边的运行依赖。
 
 首次登录飞书会自动下载 Chromium；也可以提前运行 `wechat-emoji browser install`。首次下载前 `doctor` 显示浏览器未就绪是正常的。
+
+## 界面预览
+
+<table>
+<tr>
+<td width="50%"><a href="docs/images/source.png"><img src="docs/images/source.png" alt="选择微信收藏或本地图片作为来源"></a></td>
+<td width="50%"><a href="docs/images/feishu.png"><img src="docs/images/feishu.png" alt="核对飞书接收账号与个人表情容量"></a></td>
+</tr>
+<tr>
+<td align="center"><strong>01 / 从微信出发</strong><br><sub>默认读取微信收藏，也可以使用本地图片。</sub></td>
+<td align="center"><strong>02 / 在飞书就位</strong><br><sub>核对接收账号与剩余容量，再开始添加。</sub></td>
+</tr>
+</table>
+
+<details>
+<summary>查看迁移完成界面</summary>
+
+<img src="docs/images/completed.png" alt="迁移完成界面：已确认添加、待核对与尚未提交的计数" width="960">
+
+</details>
 
 ## 使用方式
 
@@ -385,6 +417,6 @@ wechat-emoji feishu plan ./prepared --account my-feishu --existing-count 当前�
 
 [开发与打包](docs/installation.md) · [助手执行指引](INSTALL_FOR_AGENTS.md) · [CLI 协议](docs/protocol.md) · [第三方声明](THIRD_PARTY.md) · [MIT 许可证](LICENSE)
 
-<sub>README 编排参考开源项目 <a href="https://github.com/othneildrew/Best-README-Template">Best-README-Template</a>（Unlicense）。本项目非微信或飞书官方产品。</sub>
+<sub>徽章使用 <a href="https://shields.io/">Shields.io</a>，样式参考 <a href="https://github.com/Ileriayo/markdown-badges">markdown-badges</a>。README 编排参考开源项目 <a href="https://github.com/othneildrew/Best-README-Template">Best-README-Template</a>（Unlicense）。本项目非微信或飞书官方产品。</sub>
 
 </div>
