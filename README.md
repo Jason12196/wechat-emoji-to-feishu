@@ -26,15 +26,15 @@ Mac（目前） · Apple Silicon / Intel · 个人自定义表情
 
 准备好 **Mac、已安装且登录过的微信、接收表情的飞书账号和网络**。无需安装飞书客户端。
 
-点击下表直接下载对应版本。当前为成功构建的测试包，尚未发布正式 Release。
+点击下表直接下载 **v0.1.0**，无需登录 GitHub。也可以打开 [Release 页面](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/tag/v0.1.0) 查看全部文件和 SHA256 校验文件。
 
 “关于本机”显示 **Apple M 系列芯片**选 `arm64`；显示 **Intel 处理器**选 `x86_64`。
 
 | 使用方式 | Apple Silicon | Intel | 适合谁 |
 | :--- | :--- | :--- | :--- |
-| **源码包 + Electron（推荐）** | [Apple Silicon 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/actions/runs/39748947454/artifacts/12412757437) | [Intel 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/actions/runs/39748947454/artifacts/12412549176) | 希望从源码在本机运行图形界面 |
-| Electron 应用包 | [Apple Silicon 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/actions/runs/39748947454/artifacts/12412552795) | [Intel 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/actions/runs/39748947454/artifacts/12413630227) | 想直接打开桌面应用 |
-| CLI | [Apple Silicon 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/actions/runs/39748947454/artifacts/12412807186) | [Intel 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/actions/runs/39748947454/artifacts/12412359269) | 终端用户、脚本和本地 AI 助手 |
+| **源码包 + Electron（推荐）** | [Apple Silicon 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-source-macos-arm64.zip) | [Intel 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-source-macos-x86_64.zip) | 希望从源码在本机运行图形界面 |
+| Electron 应用包 | [Apple Silicon 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-desktop-macos-arm64.zip) | [Intel 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-desktop-macos-x86_64.zip) | 想直接打开桌面应用 |
+| CLI | [Apple Silicon 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-macos-arm64.tar.gz) | [Intel 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-macos-x86_64.tar.gz) | 终端用户、脚本和本地 AI 助手 |
 
 ### 方式一：源码包，`pnpm dev` 启动 Electron
 
@@ -44,7 +44,7 @@ Mac（目前） · Apple Silicon / Intel · 个人自定义表情
 npm install -g pnpm@10
 ```
 
-在上表下载对应芯片的源码包，解压下载的 ZIP，再解压其中的 `wechat-emoji-source-macos-*.zip`，得到 `wechat-emoji-to-feishu` 文件夹。进入这个文件夹执行：
+在上表下载对应芯片的源码包，解压下载的 `wechat-emoji-source-macos-*.zip`，得到 `wechat-emoji-to-feishu` 文件夹。进入这个文件夹执行：
 
 ```sh
 cd /你的解压位置/wechat-emoji-to-feishu
@@ -72,13 +72,13 @@ WECHAT_EMOJI_CLI="/实际位置/wechat-emoji/wechat-emoji" pnpm dev
 
 ### 方式二：直接打开 Electron 应用包
 
-在上表下载对应芯片的 Electron 应用包，解压下载的 ZIP，再解压其中的 `wechat-emoji-desktop-macos-*.zip`，得到 **表情迁移.app**，可以移入“应用程序”后打开。应用自带 CLI，首次登录飞书时下载浏览器。
+在上表下载对应芯片的 Electron 应用包，解压下载的 `wechat-emoji-desktop-macos-*.zip`，得到 **表情迁移.app**，可以移入“应用程序”后打开。应用自带 CLI，首次登录飞书时下载浏览器。
 
 这个包未签名、未公证，macOS 可能阻止启动。确认来源后可查看“系统设置 → 隐私与安全性”中的允许打开选项；如果仍无法打开，可以改用上面的源码包。**不需要关闭系统整体安全保护。**
 
 ### 方式三：仅使用 CLI
 
-在上表下载对应芯片的 CLI，解压下载的 ZIP，再解压其中的 `wechat-emoji-macos-*.tar.gz`，保留整个 `wechat-emoji` 文件夹。打开终端：
+在上表下载对应芯片的 CLI，解压下载的 `wechat-emoji-macos-*.tar.gz`，保留整个 `wechat-emoji` 文件夹。打开终端：
 
 ```sh
 cd /你的解压位置/wechat-emoji
@@ -175,11 +175,11 @@ https://github.com/Jason12196/wechat-emoji-to-feishu
 ### 下载与启动
 
 <details>
-<summary><strong>点击下载后需要登录，或者提示文件已过期？</strong></summary>
+<summary><strong>下载失败、链接打不开，或者文件不完整？</strong></summary>
 
-上方链接直接指向已构建的下载包。GitHub 可能要求登录普通账号，无需额外的仓库访问授权。当前测试包保留 7 天，过期时请通过 [Issues](https://github.com/Jason12196/wechat-emoji-to-feishu/issues) 告知维护者更新下载链接。
+上方链接直接下载 Release 文件，无需登录，也没有 Actions 产物的 7 天过期限制。网络失败时可以重试，或从 [Release 页面](https://github.com/Jason12196/wechat-emoji-to-feishu/releases/tag/v0.1.0) 的 Assets 选择同名文件下载。
 
-下载包外面有一层 ZIP，解开后再解压里面的源码 ZIP、应用 ZIP 或 CLI 的 `.tar.gz`。
+每个文件都有同名 `.sha256` 校验文件；校验不一致时请重新下载，不要运行不完整的文件。链接仍不可用时通过 [Issues](https://github.com/Jason12196/wechat-emoji-to-feishu/issues) 反馈。
 
 </details>
 

@@ -17,35 +17,31 @@ The source kit starts the Electron dependency installed on the user's machine in
 
 1. Check `uname -s` and `uname -m`. Current deliverables support Darwin `arm64` and `x86_64`. Windows/Linux interfaces are reserved but not ready for installation.
 2. Check for an existing install, its version and the user's desired directory. Reuse the existing installation when appropriate. Preserve older versions and unrelated files.
-3. The repository is currently private: `Jason12196/wechat-emoji-to-feishu`. Prefer authenticated GitHub CLI. `gh auth status` checks access; authorization, if needed, is completed by the user locally. Never request or print a token, and do not request workflow permissions merely to download.
+3. The repository and Release downloads are public. Prefer the direct links in README; no GitHub login or token is required. Never request extra GitHub permissions merely to download.
 4. Use a task-specific staging directory and an agreed install location. Do not use `sudo` or silently modify shell startup files. The source kit needs its whole extracted directory to remain present.
 
-## Find downloadable artifacts
+## Download the public Release
+
+Use the direct versioned links in README or inspect:
+https://github.com/Jason12196/wechat-emoji-to-feishu/releases/tag/v0.1.0
+
+Match the actual host architecture (`arm64` or `x86_64`). Assets are:
+
+- Source kit: `wechat-emoji-source-macos-ARCH.zip`
+- Electron: `wechat-emoji-desktop-macos-ARCH.zip`
+- CLI: `wechat-emoji-macos-ARCH.tar.gz`
+
+Download into a fresh staging directory, substituting the architecture and absolute destination:
 
 ```sh
-gh run list --repo Jason12196/wechat-emoji-to-feishu \
-  --workflow ci.yml --branch main --status success --limit 10 \
-  --json databaseId,headSha,conclusion
+curl --fail --location --retry 3 \
+  "https://github.com/Jason12196/wechat-emoji-to-feishu/releases/download/v0.1.0/wechat-emoji-source-macos-ARCH.zip" \
+  --output /ABSOLUTE/STAGING/DIRECTORY/wechat-emoji-source-macos-ARCH.zip
 ```
 
-Choose the newest successful run containing the required, unexpired artifact. Match the actual host architecture:
+Download the matching `.sha256` file and compare the archive digest before extraction. Release checksums help detect corrupted downloads; they are not Apple signatures or notarization. Inspect member paths and reject traversal or absolute paths. Preserve executable permissions and the entire runtime directory. Never overwrite an existing installation without checking its scope.
 
-| Kind | Actions artifact | File inside |
-| --- | --- | --- |
-| Source kit | `macos-source-ARCH` | `wechat-emoji-source-macos-ARCH.zip` |
-| Electron | `macos-desktop-ARCH` | `wechat-emoji-desktop-macos-ARCH.zip` |
-| CLI | `macos-cli-ARCH` | `wechat-emoji-macos-ARCH.tar.gz` |
-
-Replace `ARCH` with `arm64` or `x86_64`, and replace the other placeholders:
-
-```sh
-gh run download RUN_ID --repo Jason12196/wechat-emoji-to-feishu \
-  --name macos-source-ARCH --dir /ABSOLUTE/STAGING/DIRECTORY
-```
-
-Artifacts expire after 7 days. Inspect the archive member list before extraction; reject absolute paths and traversal. Do not overwrite an existing installation. A checksum calculated locally is not proof of cryptographic authenticity; these packages are not Apple-signed or notarized releases.
-
-If a suitable artifact is missing, check other successful runs. If all have expired, report the need for a maintainer rebuild or offer an explicitly scoped development build. Do not publish releases, change CI permissions or download the wrong architecture as a workaround.
+Release assets do not have the Actions artifact expiration period. If an asset is unavailable, report the missing filename and offer an existing release or a scoped source setup. Do not publish releases, change CI permissions or download the wrong architecture as an installation workaround.
 
 ## Desktop source kit
 
@@ -67,11 +63,11 @@ WECHAT_EMOJI_CLI="/ABSOLUTE/CLI/DIRECTORY/wechat-emoji" pnpm dev
 
 The override must point to this project's CLI, not an upstream extractor binary. It does not authorize copying browser profiles or private user state into the source folder.
 
-4. Report install location, host architecture, artifact run/commit, command to launch next time, and whether the window was opened. Starting the app performs local environment/account detection; leave actual export/login/upload to the user unless separately requested.
+4. Report install location, host architecture, Release version, command to launch next time, and whether the window was opened. Starting the app performs local environment/account detection; leave actual export/login/upload to the user unless separately requested.
 
 ## Prebuilt CLI only
 
-1. Download `macos-cli-ARCH` and extract the full `wechat-emoji/` directory. Keep `_internal` and all companion files; never install only the executable.
+1. Download `wechat-emoji-macos-ARCH.tar.gz` and extract the full `wechat-emoji/` directory. Keep `_internal` and all companion files; never install only the executable.
 2. Run the installed binary with its absolute path:
 
 ```sh
@@ -81,7 +77,7 @@ The override must point to this project's CLI, not an upstream extractor binary.
 
 Global flags precede subcommands. `doctor` is read-only with respect to WeChat/Feishu and does not install Chromium. A browser-not-ready result before first use is expected. `browser install` is optional preparation: it downloads the matching runtime and checks a local headless launch, without visiting Feishu. First login can also install it automatically.
 
-3. Report the executable path, architecture, source run/commit, version, diagnostic result and any remaining setup. Provide a copyable command. Do not silently change global PATH or install Electron when the user only requested CLI.
+3. Report the executable path, architecture, Release version, version, diagnostic result and any remaining setup. Provide a copyable command. Do not silently change global PATH or install Electron when the user only requested CLI.
 
 ## Unsigned Electron app
 
