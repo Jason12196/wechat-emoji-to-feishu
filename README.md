@@ -26,15 +26,15 @@ Mac（目前） · Apple Silicon / Intel · 个人自定义表情
 
 准备好 **Mac、已安装且登录过的微信、接收表情的飞书账号和网络**。无需安装飞书客户端。
 
-仓库目前为私有，下载需要 GitHub 账号有访问权限。打开 [Actions 下载页](https://github.com/Jason12196/wechat-emoji-to-feishu/actions/workflows/ci.yml)，选择最近一次**全部成功**的构建，在页面底部 **Artifacts** 下载。产物保留 7 天；尚未发布正式 Release。
+点击下表直接下载对应版本。当前为成功构建的测试包，尚未发布正式 Release。
 
 “关于本机”显示 **Apple M 系列芯片**选 `arm64`；显示 **Intel 处理器**选 `x86_64`。
 
 | 使用方式 | Apple Silicon | Intel | 适合谁 |
 | :--- | :--- | :--- | :--- |
-| **源码包 + Electron（推荐）** | `macos-source-arm64` | `macos-source-x86_64` | 希望从源码在本机运行图形界面 |
-| Electron 应用包 | `macos-desktop-arm64` | `macos-desktop-x86_64` | 想直接打开桌面应用 |
-| CLI | `macos-cli-arm64` | `macos-cli-x86_64` | 终端用户、脚本和本地 AI 助手 |
+| **源码包 + Electron（推荐）** | [Apple Silicon 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/actions/runs/39748947454/artifacts/12412757437) | [Intel 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/actions/runs/39748947454/artifacts/12412549176) | 希望从源码在本机运行图形界面 |
+| Electron 应用包 | [Apple Silicon 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/actions/runs/39748947454/artifacts/12412552795) | [Intel 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/actions/runs/39748947454/artifacts/12413630227) | 想直接打开桌面应用 |
+| CLI | [Apple Silicon 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/actions/runs/39748947454/artifacts/12412807186) | [Intel 下载](https://github.com/Jason12196/wechat-emoji-to-feishu/actions/runs/39748947454/artifacts/12412359269) | 终端用户、脚本和本地 AI 助手 |
 
 ### 方式一：源码包，`pnpm dev` 启动 Electron
 
@@ -44,7 +44,7 @@ Mac（目前） · Apple Silicon / Intel · 个人自定义表情
 npm install -g pnpm@10
 ```
 
-下载对应的 `macos-source-*` 产物，解压其中的 `wechat-emoji-source-macos-*.zip`，得到 `wechat-emoji-to-feishu` 文件夹。进入这个文件夹执行：
+在上表下载对应芯片的源码包，解压下载的 ZIP，再解压其中的 `wechat-emoji-source-macos-*.zip`，得到 `wechat-emoji-to-feishu` 文件夹。进入这个文件夹执行：
 
 ```sh
 cd /你的解压位置/wechat-emoji-to-feishu
@@ -58,7 +58,7 @@ pnpm dev
 <details>
 <summary><strong>我下载的是 GitHub「Code → Download ZIP」或直接 git clone，可以启动吗？</strong></summary>
 
-可以，同样在仓库根目录运行 `pnpm dev`。GitHub 的普通源码 ZIP 没有编译好的 CLI，启动脚本会尝试通过 [GitHub CLI](https://cli.github.com/) 下载 `main` 最近一次成功构建中对应架构的 CLI。私有仓库需要先在本机完成 `gh auth login`，且该账号有仓库权限。
+可以直接[下载仓库源码 ZIP](https://github.com/Jason12196/wechat-emoji-to-feishu/archive/refs/heads/main.zip)，在仓库根目录运行 `pnpm dev`。普通源码 ZIP 不含编译好的 CLI；请同时从上表下载对应芯片的 CLI，解压后按下面的方式指定。已有 GitHub CLI 的用户也可以让启动脚本自动获取成功构建的 CLI。
 
 如果已经下载过本项目 CLI，也可以直接指定它，保留完整 CLI 文件夹：
 
@@ -66,19 +66,19 @@ pnpm dev
 WECHAT_EMOJI_CLI="/实际位置/wechat-emoji/wechat-emoji" pnpm dev
 ```
 
-没有可用的构建产物时，请下载含 CLI 的源码包，或联系维护者重新构建。不要把 GitHub 令牌粘贴到聊天中。
+想省去单独准备 CLI 的步骤，直接选择上表的“源码包 + Electron”。
 
 </details>
 
 ### 方式二：直接打开 Electron 应用包
 
-下载 `macos-desktop-*`，解压其中的 `wechat-emoji-desktop-macos-*.zip`，得到 **表情迁移.app**，可以移入“应用程序”后打开。应用自带 CLI，首次登录飞书时下载浏览器。
+在上表下载对应芯片的 Electron 应用包，解压下载的 ZIP，再解压其中的 `wechat-emoji-desktop-macos-*.zip`，得到 **表情迁移.app**，可以移入“应用程序”后打开。应用自带 CLI，首次登录飞书时下载浏览器。
 
 这个包未签名、未公证，macOS 可能阻止启动。确认来源后可查看“系统设置 → 隐私与安全性”中的允许打开选项；如果仍无法打开，可以改用上面的源码包。**不需要关闭系统整体安全保护。**
 
 ### 方式三：仅使用 CLI
 
-下载 `macos-cli-*`，解压其中的 `wechat-emoji-macos-*.tar.gz`，保留整个 `wechat-emoji` 文件夹。打开终端：
+在上表下载对应芯片的 CLI，解压下载的 ZIP，再解压其中的 `wechat-emoji-macos-*.tar.gz`，保留整个 `wechat-emoji` 文件夹。打开终端：
 
 ```sh
 cd /你的解压位置/wechat-emoji
@@ -163,23 +163,23 @@ https://github.com/Jason12196/wechat-emoji-to-feishu
 请按 README 和 INSTALL_FOR_AGENTS.md 安装这个项目的 CLI：
 https://github.com/Jason12196/wechat-emoji-to-feishu
 
-检测 Mac 架构，优先下载对应的成功构建产物，保留完整运行目录。
+检测 Mac 架构，使用 README 下载表格中的对应链接，保留完整运行目录。
 只检查版本和运行环境，告诉我可执行文件位置和使用命令。
 本次不登录、不导出、不上传；等我明确要求迁移时再继续。
 ```
 
-私有仓库需要助手使用的 GitHub 登录有访问权限，授权由你在本机完成。扫码登录也由你操作。远程云端助手无法直接读取你 Mac 上的微信数据。
+助手按上方下载链接安装，微信和飞书扫码登录由你操作。远程云端助手无法直接读取你 Mac 上的微信数据。
 
 ## 常见问题
 
 ### 下载与启动
 
 <details>
-<summary><strong>链接显示 404、没有下载按钮，或者下载已过期？</strong></summary>
+<summary><strong>点击下载后需要登录，或者提示文件已过期？</strong></summary>
 
-仓库目前为私有，先登录拥有访问权限的 GitHub 账号。404 也可能只是没有权限。下载文件在一次成功构建页面底部的 Artifacts；产物保留 7 天，过期后需要维护者重新构建。GitHub 网页和本机 `gh` 可能登录不同账号，需要分别核对。
+上方链接直接指向已构建的下载包。GitHub 可能要求登录普通账号，无需额外的仓库访问授权。当前测试包保留 7 天，过期时请通过 [Issues](https://github.com/Jason12196/wechat-emoji-to-feishu/issues) 告知维护者更新下载链接。
 
-Actions 下载外面还会有一层 ZIP。解开后再解压里面的源码 ZIP、应用 ZIP 或 CLI 的 `.tar.gz`。
+下载包外面有一层 ZIP，解开后再解压里面的源码 ZIP、应用 ZIP 或 CLI 的 `.tar.gz`。
 
 </details>
 
@@ -188,7 +188,7 @@ Actions 下载外面还会有一层 ZIP。解开后再解压里面的源码 ZIP�
 
 先运行 `node --version` 和 `pnpm --version`。需要 Node.js 22.12 或更新版本、pnpm 10；没有 pnpm 时可运行 `npm install -g pnpm@10`。在解压后含根 `package.json` 的 `wechat-emoji-to-feishu` 目录运行 `pnpm dev`，不要进入 `desktop` 子目录。
 
-第一次启动需要下载依赖和 Electron，网络慢时请留意终端进度。若网络失败，修复网络后重试同一个 `pnpm dev`，保留完整错误。提示缺少 CLI 或 GitHub 权限时，确认下载的是**含 CLI 的源码包**，或按安装章节设置 `WECHAT_EMOJI_CLI`。
+第一次启动需要下载依赖和 Electron，网络慢时请留意终端进度。若网络失败，修复网络后重试同一个 `pnpm dev`，保留完整错误。提示缺少 CLI 时，确认下载的是**含 CLI 的源码包**，或按安装章节设置 `WECHAT_EMOJI_CLI`。
 
 </details>
 
